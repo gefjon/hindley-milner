@@ -17,6 +17,9 @@
    :binop :make-binop :binop-op :binop-lhs :binop-rhs))
 (cl:in-package :hindley-milner/syntax)
 
+;;;; surface-level syntax, which largely mimics common lisp
+;; TODO: write a parser that reads these out of s-exps
+
 (defenum literal fixnum boolean)
 (deftype operator ()
   '(member + - * / =))
