@@ -1,0 +1,5 @@
+;;;; -*- mode:lisp; -*-
+
+(def a 1)
+(def b 2)
+(binop + a b)
