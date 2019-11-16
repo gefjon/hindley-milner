@@ -123,6 +123,10 @@
               (parse (syntax:binop-lhs binop))
               (parse (syntax:binop-rhs binop))))
 
+;; and now, a big branch on the kind of clause. this could change into
+;; a generic function, which would make the typecase implicit, but i
+;; see no real reason to prefer that.
+
 (declaim (ftype (function (clause) expr) parse))
 (defun parse (clause)
   (etypecase clause
