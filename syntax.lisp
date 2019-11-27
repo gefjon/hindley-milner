@@ -36,8 +36,9 @@
 
            :+ :- :* :/ :=
 
-   :|true|
-   :|false|)
+   :|boolean| :|true| :|false|
+
+   :|fixnum|)
   (:nicknames :hm))
 
 (deftype boolean-literal ()

@@ -2,5 +2,4 @@
   :class :package-inferred-system
   :author "Phoebe Goldman"
   :version "0.0.1"
-  :depends-on (:hindley-milner/syntax
-               :hindley-milner/ir1))
+  :depends-on (:hindley-milner/typecheck))

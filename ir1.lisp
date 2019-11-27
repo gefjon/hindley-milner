@@ -9,7 +9,7 @@
    :expr
    :quote :make-quote :quote-it
    :funcall :make-funcall :funcall-function :funcall-arg
-   :lambda :make-lambda :lamda-binding :lambda-body
+   :lambda :make-lambda :lambda-binding :lambda-body
    :let :make-let :let-binding :let-initform :let-body
    :if :make-if :if-predicate :if-then-case :if-else-case
    :binop :make-binop :binop-op :binop-lhs :binop-rhs
@@ -27,18 +27,6 @@
 ;; - implicit progns (e.g. in let or lambda) are made explicit
 ;; 
 ;; - literals are tagged with a quote
-
-(deftype type-primitive ()
-  '(member fixnum boolean))
-
-(deftype type-variable ()
-  '(and symbol (not type-primitive)))
-
-(defenum type
-  type-primitive
-  type-variable
-  (-> ((input type)
-       (output type))))
 
 (defenum expr
   symbol
