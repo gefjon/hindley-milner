@@ -4,5 +4,5 @@
 (def b 2)
 (def foo true)
 (def bar false)
-(def baz (lambda (x y) y))
+(def baz (lambda (x y) x y))
 (baz a b)

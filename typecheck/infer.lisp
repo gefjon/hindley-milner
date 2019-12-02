@@ -3,14 +3,34 @@
   (:mix :hindley-milner/typecheck/type
    :hindley-milner/typecheck/substitute
         :trivial-types :iterate :cl)
-  (:import-from :hindley-milner/ir1))
+  (:import-from :hindley-milner/ir1)
+  (:export :infer :constraint :constraints :constraint-lhs :constraint-rhs))
 (cl:in-package :hindley-milner/typecheck/infer)
 
 (deftype constraint ()
   '(cons type type))
 
+(declaim (ftype (function (constraint) type)
+                constraint-lhs))
+(defun constraint-lhs (constraint)
+  (car constraint))
+
+(declaim (ftype (function (constraint) type)
+                constraint-rhs))
+(defun constraint-rhs (constraint)
+  (cdr constraint))
+
 (deftype constraints ()
   '(association-list type type))
+
+(declaim (ftype (function (type type constraints) constraints)
+                constraint-acons))
+(defun constraint-acons (lhs rhs tail)
+  (acons lhs rhs tail))
+
+(declaim (ftype (function (constraint) type)
+                constraint-lhs))
+
 
 (declaim (ftype (function (type-env symbol) type-scheme)
                 type-env-lookup))
@@ -56,7 +76,25 @@
   (multiple-value-bind (pred-type pred-constraints) (infer (ir1:if-predicate expr) type-env)
     (multiple-value-bind (then-type then-constraints) (infer (ir1:if-then-case expr) type-env)
       (multiple-value-bind (else-type else-constraints) (infer (ir1:if-else-case expr) type-env)
-        (let ((if-constraints (acons pred-type 'hm:|boolean|
+        (let ((if-constraints (acons pred-type type:*boolean*
                                      (acons then-type else-type ()))))
           (values then-type
                   (append if-constraints pred-constraints then-constraints else-constraints)))))))
+
+(defmethod infer ((expr ir1:progn) type-env)
+  (iter
+    (for side-effect-expr in (ir1:progn-side-effects expr))
+    (for (values expr-type expr-constraints) = (infer side-effect-expr type-env))
+    (appending expr-constraints into side-effect-constraints)
+    (finally
+     (multiple-value-bind (return-type return-constraints) (infer (ir1:progn-return-value expr) type-env)
+       (return (values return-type
+                       (append side-effect-constraints return-constraints)))))))
+
+(defmethod infer ((expr ir1:quote) type-env)
+  (declare (ignorable type-env))
+  (values 
+   (etypecase (ir1:quote-it expr)
+     (boolean type:*boolean*)
+     (fixnum type:*fixnum*))
+   '()))

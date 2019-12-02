@@ -7,6 +7,7 @@
   (:export
 
    :type
+   :type-primitive :type-primitive-name :*boolean* :*fixnum*
    :-> :make--> :->-input :->-output
 
    :new-type-variable
@@ -18,8 +19,12 @@
 
 (defenum type
   symbol ;; denoting a type-variable
+  (type-primitive ((name t)))
   (-> ((input type)
        (output type))))
+
+(defvar *boolean* (make-type-primitive 'cl:boolean))
+(defvar *fixnum* (make-type-primitive 'cl:fixnum))
 
 (defun new-type-variable (&optional (name "type-variable-"))
   (let ((name-string (etypecase name

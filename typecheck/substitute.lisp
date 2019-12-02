@@ -15,10 +15,23 @@
     (cdr assoc)
     target))
 
+(defmethod apply-substitution (substitution (target type-primitive))
+  (declare (ignorable substitution))
+  target)
+
 (defmethod apply-substitution (substitution (target ->))
   (flet ((recurse (target) (apply-substitution substitution target)))
     (make--> (recurse (->-input target))
              (recurse (->-output target)))))
+
+(defmethod apply-substitution (substitution (target cons))
+  (flet ((recurse (target) (apply-substitution substitution target)))
+    (cons (recurse (car target))
+          (recurse (cdr target)))))
+
+(defmethod apply-substitution (substitution (target null))
+  (declare (ignorable substitution))
+  target)
 
 (declaim (ftype (function (type-scheme) type)
                 instantiate))
@@ -37,6 +50,10 @@
 
 (defmethod free-type-variables ((within symbol))
   (list within))
+
+(defmethod free-type-variables ((within type-primitive))
+  (declare (ignorable within))
+  '())
 
 (defmethod free-type-variables ((within ->))
   (union (free-type-variables (->-input within))
