@@ -15,7 +15,7 @@
    :binop :make-binop :binop-op :binop-lhs :binop-rhs
    :progn :make-progn :progn-side-effects :progn-return-value
 
-   :parse))
+   :parse :parse-program))
 (cl:in-package :hindley-milner/ir1)
 
 ;;;; transformations from surface-syntax to ir1:
@@ -47,13 +47,8 @@
   (progn ((side-effects (proper-list expr))
           (return-value expr))))
 
-;; (funcall a b c) => (funcall (funcall a b) c)
-
-;; TODO: handle the edge case of invoking a function on no arguments
-(declaim (ftype (function (syntax:funcall) funcall) transform-funcall))
-(defun transform-funcall (funcall)
-  (reduce #'make-funcall (mapcar #'parse (syntax:funcall-args funcall))
-          :initial-value (syntax:funcall-function funcall)))
+(defgeneric parse (clause)
+  (:documentation "transform a `SYNTAX:CLAUSE' into an `IR1:CLAUSE'"))
 
 (declaim (ftype (function ((proper-list clause)) expr) transform-implicit-progn))
 (defun transform-implicit-progn (progn)
@@ -65,63 +60,78 @@
          ;;
          ;; (make-progn (subseq progn 0 (1- (length progn)))
          ;;             (car (last progn)))
-
          (let* ((backwards (reverse progn))
                            (return-value (parse (first backwards)))
                            (side-effects-backwards (rest backwards))
                            (side-effects (nreverse (mapcar #'parse side-effects-backwards))))
                       (make-progn side-effects return-value)))))
 
-;; (lambda (a b) (c d)) => (lambda a (lambda b (progn c d)))
+(defmethod parse ((funcall syntax:funcall))
+  "transform (funcall a b c) into (funcall (funcall a b) c)
 
-;; TODO: correctly handle the edge case where (lambda-bindings lambda) is nil
-(declaim (ftype (function (syntax:lambda) lambda) transform-lambda))
-(defun transform-lambda (lambda)
+TODO: handle the edge case of invoking a function on no arguments by transforming into an invocation of one empty argument"
+  (reduce #'make-funcall (mapcar #'parse (syntax:funcall-args funcall))
+          :initial-value (syntax:funcall-function funcall)))
+
+(defmethod parse ((lambda syntax:lambda))
+  "transform (lambda (a b) (c d)) into (lambda a (lambda b (progn c d)))
+
+TODO: correctly handle the edge case where (lambda-bindings lambda) is nil by transforming into a function of one empty argument"
   (flet ((reduce-lambda (binding body)
            (make-lambda binding body)))
     (reduce #'reduce-lambda (syntax:lambda-bindings lambda)
             :from-end t
             :initial-value (transform-implicit-progn (syntax:lambda-body lambda)))))
 
-;; (let ((a b) (c d)) e f) => (let a b (let c d (progn e f)))
+(declaim (ftype (function (syntax:definition expr) expr)
+                let-from-definition))
+(defun let-from-definition (definition body)
+  "build an `IR1:LET' from a `SYNTAX:DEFINITION' and an `IR1:EXPR'
 
-;; has declaimed return type EXPR (not the more specific LET) because
-;; of an edge-case when parsing a let that binds no symbols
-(declaim (ftype (function (syntax:let) expr) transform-let))
-(defun transform-let (let)
-  (flet ((reduce-let (definition body)
-           (make-let (syntax:definition-binding definition)
-                     (parse (syntax:definition-value definition))
-                     body)))
-    (reduce #'reduce-let (syntax:let-bindings let)
-            :from-end t
-            :initial-value (transform-implicit-progn (syntax:let-body let)))))
+passed to `REDUCE' in parsers for `LET' and `SYNTAX:PROGRAM'"
+  (make-let (syntax:definition-binding definition)
+            (parse (syntax:definition-value definition))
+            body))
 
-;; these last two transforms just recurse on PARSE 
+(defmethod parse ((let syntax:let))
+  "transform (let ((a b) (c d)) e f) into (let a b (let c d (progn e f)))
 
-(declaim (ftype (function (syntax:if) if) transform-if))
-(defun transform-if (if)
+edge case: parses (let () a b) into (progn a b)"
+  (reduce #'let-from-definition (syntax:let-bindings let)
+          :from-end t
+          :initial-value (transform-implicit-progn (syntax:let-body let))))
+
+(defmethod parse ((if syntax:if))
+  "boring. recurse on `PARSE'"
   (make-if (parse (syntax:if-predicate if))
            (parse (syntax:if-then-case if))
            (parse (syntax:if-else-case if))))
 
-(declaim (ftype (function (syntax:binop) binop) transform-binop))
-(defun transform-binop (binop)
+(defmethod parse ((binop syntax:binop))
+  "boring. recurse on `PARSE'"
   (make-binop (parse (syntax:binop-op binop))
               (parse (syntax:binop-lhs binop))
               (parse (syntax:binop-rhs binop))))
 
-;; and now, a big branch on the kind of clause. this could change into
-;; a generic function, which would make the typecase implicit, but i
-;; see no real reason to prefer that.
+(defmethod parse ((symbol symbol))
+  "return variables unchanged; quote booleans"
+  (etypecase symbol
+    ;; quote `CL:BOOLEAN's, i.e. the symbols `CL:T' and `CL:NIL'
+    (boolean (make-quote symbol))
+    ;; transform and quote `SYNTAX:BOOLEAN-LITERAL's, i.e. the symbols
+    ;; `HM:|true|' and `HM:|false|', even though they should already
+    ;; be transformed by `SYNTAX:PARSE'
+    (syntax:boolean-literal (make-quote (syntax:parse-boolean symbol)))
+    (symbol symbol)))
 
-(declaim (ftype (function (clause) expr) parse))
-(defun parse (clause)
+(defmethod parse (clause)
+  "quote literals; error otherwise"
   (etypecase clause
-    (symbol clause)
-    (syntax:literal (make-quote clause))
-    (syntax:funcall (transform-funcall clause))
-    (syntax:lambda (transform-lambda clause))
-    (syntax:let (transform-let clause))
-    (syntax:if (transform-if clause))
-    (syntax:binop (transform-binop clause))))
+    (syntax:literal (make-quote clause))))
+
+(declaim (ftype (function (syntax:program) expr)
+                parse-program))
+(defun parse-program (program)
+  (reduce #'let-from-definition (syntax:program-definitions program)
+          :from-end t
+          :initial-value (parse (syntax:program-entry program))))
