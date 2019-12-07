@@ -6,6 +6,8 @@
   (:shadow :funcall :lambda :let :quote :if :binop :type :progn)
   (:export
 
+   :typed-node :typed-node-type :type-already-computed-p
+
    :expr
    :quote :make-quote :quote-it
    :funcall :make-funcall :funcall-function :funcall-arg
@@ -28,6 +30,18 @@
 ;; 
 ;; - literals are tagged with a quote
 
+(defclass typed-node ()
+  ((type :accessor typed-node-type
+         :type type)))
+
+(declaim (ftype (function (typed-node) boolean)
+                type-already-computed-p))
+(defun type-already-computed-p (typed-node)
+  (slot-boundp typed-node 'type))
+
+(defmacro defexpr (name slots)
+  `(gefjon-utils:defclass ,name ,slots :superclasses (typed-node)))
+
 (defenum expr
     (symbol ; denoting a variable
      (quote ((it syntax:literal)))
@@ -45,7 +59,8 @@
              (lhs expr)
              (rhs expr)))
      (progn ((side-effects (proper-list expr))
-             (return-value expr)))))
+             (return-value expr))))
+  :defstruct defexpr)
 
 (defgeneric parse (clause)
   (:documentation "transform a `SYNTAX:CLAUSE' into an `IR1:CLAUSE'"))

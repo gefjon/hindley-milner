@@ -41,6 +41,13 @@
 (defgeneric infer (expr type-env)
   (:documentation "returns (`VALUES' TYPE CONSTRAINTS), where TYPE is the inferred type of EXPR, and CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to solve"))
 
+(defmethod infer :around ((expr ir1:typed-node) type-env)
+  (if (ir1:type-already-computed-p expr)
+      (ir1:typed-node-type expr)
+      (multiple-value-bind (type constraints) (call-next-method)
+        (setf (ir1:typed-node-type expr) type)
+        (values type constraints))))
+
 (defmethod infer ((expr symbol) type-env)
   (instantiate (type-env-lookup type-env expr)))
 
