@@ -4,11 +4,11 @@
   (:export :defenum))
 (cl:in-package :hindley-milner/defenum)
 
-(defmacro defenum (type-name &rest variants)
+(defmacro defenum (type-name variants &key (defstruct 'gefjon-utils:defstruct))
   (flet ((define-variant (variant)
            (etypecase variant
              (symbol nil)
-             (list `(gefjon-utils:defstruct ,@variant))))
+             (list `(,defstruct ,@variant))))
          (type-name-for (variant)
            (etypecase variant
              (symbol variant)

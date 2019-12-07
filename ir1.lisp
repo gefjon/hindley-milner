@@ -1,5 +1,5 @@
 (uiop:define-package :hindley-milner/ir1
-    (:mix :hindley-milner/defenum :trivial-types :cl)
+    (:mix :hindley-milner/early-type :hindley-milner/defenum :trivial-types :cl)
   (:nicknames :ir1)
   (:import-from :hindley-milner/syntax
                 :literal :clause)
@@ -29,23 +29,23 @@
 ;; - literals are tagged with a quote
 
 (defenum expr
-  symbol
-  (quote ((it syntax:literal)))
-  (funcall ((function expr)
-            (arg expr)))
-  (lambda ((binding symbol)
+    (symbol ; denoting a variable
+     (quote ((it syntax:literal)))
+     (funcall ((function expr)
+               (arg expr)))
+     (lambda ((binding symbol)
+              (body expr)))
+     (let ((binding symbol)
+           (initform expr)
            (body expr)))
-  (let ((binding symbol)
-        (initform expr)
-        (body expr)))
-  (if ((predicate expr)
-       (then-case expr)
-       (else-case expr)))
-  (binop ((op syntax:operator)
-          (lhs expr)
-          (rhs expr)))
-  (progn ((side-effects (proper-list expr))
-          (return-value expr))))
+     (if ((predicate expr)
+          (then-case expr)
+          (else-case expr)))
+     (binop ((op syntax:operator)
+             (lhs expr)
+             (rhs expr)))
+     (progn ((side-effects (proper-list expr))
+             (return-value expr)))))
 
 (defgeneric parse (clause)
   (:documentation "transform a `SYNTAX:CLAUSE' into an `IR1:CLAUSE'"))

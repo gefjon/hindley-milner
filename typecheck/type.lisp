@@ -1,27 +1,21 @@
 (uiop:define-package :hindley-milner/typecheck/type
     (:nicknames :type)
-  (:use :hindley-milner/defenum :trivial-types :cl)
-  (:shadow :type)
-  (:import-from :alexandria)
+  (:mix :hindley-milner/early-type :hindley-milner/defenum :trivial-types :cl)
   (:import-from :gefjon-utils)
-  (:export
+  (:use-reexport
 
-   :type
-   :type-primitive :type-primitive-name :*boolean* :*fixnum*
-   :-> :make--> :->-input :->-output
+   :hindley-milner/early-type)
+  (:export
 
    :new-type-variable
 
    :type-scheme :make-type-scheme :type-scheme-bindings :type-scheme-body
 
-   :type-env))
+   :type-env
+
+   :lazy-type-mixin))
 (cl:in-package :hindley-milner/typecheck/type)
 
-(defenum type
-  symbol ;; denoting a type-variable
-  (type-primitive ((name t)))
-  (-> ((input type)
-       (output type))))
 
 (defvar *boolean* (make-type-primitive 'cl:boolean))
 (defvar *fixnum* (make-type-primitive 'cl:fixnum))

@@ -48,9 +48,9 @@
   '(member hm:|true| hm:|false|))
 
 (defun parse-boolean (bool)
-  (ecase bool
-    (hm:|true| t)
-    (hm:|false| nil)))
+    (ecase bool
+      (hm:|true| t)
+      (hm:|false| nil)))
 
 ;; booleans aren't really literals, because there's no way to get the
 ;; reader to produce one in a hindley-milner source file (other than
@@ -61,7 +61,7 @@
 ;; to work around this unpleasentness, both the syntax parser and the
 ;; ir1 transformer transform the symbols `HM:|true|' and `HM:|false|'
 ;; appropriately.
-(defenum literal fixnum boolean)
+(defenum literal (fixnum boolean))
 
 (deftype operator ()
   '(member hm:+ hm:- hm:* hm:/ hm:=))
@@ -78,20 +78,20 @@
     (make-definition binding (parse value))))
 
 (defenum clause
-  symbol
-  literal
-  (funcall ((function clause)
-            (args (proper-list clause))))
-  (lambda ((bindings (proper-list symbol))
+    (symbol ; denoting a variable
+     literal
+     (funcall ((function clause)
+               (args (proper-list clause))))
+     (lambda ((bindings (proper-list symbol))
+              (body (proper-list clause))))
+     (let ((bindings (proper-list definition))
            (body (proper-list clause))))
-  (let ((bindings (proper-list definition))
-        (body (proper-list clause))))
-  (if ((predicate clause)
-       (then-case clause)
-       (else-case clause)))
-  (binop ((op operator)
-          (lhs clause)
-          (rhs clause))))
+     (if ((predicate clause)
+          (then-case clause)
+          (else-case clause)))
+     (binop ((op operator)
+             (lhs clause)
+             (rhs clause)))))
 
 (defun parse (thing)
   (etypecase thing
