@@ -1,9 +1,11 @@
 (uiop:define-package :hindley-milner/ir1
-    (:mix :hindley-milner/early-type :hindley-milner/defenum :trivial-types :cl)
+    (:use :hindley-milner/defenum :trivial-types :cl)
+  (:shadowing-import-from :hindley-milner/typecheck/type
+                          :type)
   (:nicknames :ir1)
   (:import-from :hindley-milner/syntax
                 :literal :clause)
-  (:shadow :funcall :lambda :let :quote :if :binop :type :prog2 :variable)
+  (:shadow :funcall :lambda :let :quote :if :binop :prog2 :variable)
   (:export
 
    :typed-node :typed-node-type :type-already-computed-p
