@@ -42,20 +42,20 @@
 
 (defmacro derive-print-object-for-expr (name slots)
   (alexandria:with-gensyms (this stream)
-    `(defmethod print-object ((,this ,name) ,stream)
-       (pprint-logical-block (,stream nil)
-         (print-unreadable-object (,this ,stream :type t :identity nil)
-           ,(cl:let ((slot-names (mapcar #'first slots)))
-              (labels ((print-slot-and-name (name value-form)
-                         `(cl:prog2
-                            (pprint-newline :linear ,stream)
-                              (format ,stream "~a: ~a;" ',name ,value-form)))
-                       (print-slot-form (slot)
-                         (print-slot-and-name slot slot)))
-                `(with-slots ,slot-names ,this
-                   (when (type-already-computed-p ,this)
-                     ,(print-slot-and-name 'type `(typed-node-type ,this)))
-                   ,@(mapcar #'print-slot-form slot-names)))))))))
+    (cl:let ((slot-names (mapcar #'first slots)))
+      (labels ((print-slot-and-name (name value-form)
+                 `(cl:prog2
+                      (pprint-newline :linear ,stream)
+                      (format ,stream "~a: ~a;" ',name ,value-form)))
+               (print-slot-form (slot)
+                 (print-slot-and-name slot slot)))
+        `(defmethod print-object ((,this ,name) ,stream)
+           (pprint-logical-block (,stream nil)
+             (print-unreadable-object (,this ,stream :type t :identity nil)
+               (with-slots ,slot-names ,this
+                 (when (type-already-computed-p ,this)
+                   ,(print-slot-and-name 'type `(typed-node-type ,this)))
+                 ,@(mapcar #'print-slot-form slot-names)))))))))
 
 (defmacro defexpr (name slots)
   `(prog1
