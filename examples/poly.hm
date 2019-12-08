@@ -1,0 +1,6 @@
+;;;; -*- mode:lisp; -*-
+
+(def func (lambda (x) x))
+(let ()
+  (func 1)
+  (func true))
