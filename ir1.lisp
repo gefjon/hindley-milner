@@ -3,12 +3,13 @@
   (:nicknames :ir1)
   (:import-from :hindley-milner/syntax
                 :literal :clause)
-  (:shadow :funcall :lambda :let :quote :if :binop :type :progn)
+  (:shadow :funcall :lambda :let :quote :if :binop :type :progn :variable)
   (:export
 
    :typed-node :typed-node-type :type-already-computed-p
 
    :expr
+   :variable :make-variable :variable-name
    :quote :make-quote :quote-it
    :funcall :make-funcall :funcall-function :funcall-arg
    :lambda :make-lambda :lambda-binding :lambda-body
@@ -39,11 +40,30 @@
 (defun type-already-computed-p (typed-node)
   (slot-boundp typed-node 'type))
 
+(defmacro derive-print-object-for-expr (name slots)
+  (alexandria:with-gensyms (this stream)
+    `(defmethod print-object ((,this ,name) ,stream)
+       (pprint-logical-block (,stream nil)
+         (print-unreadable-object (,this ,stream :type t :identity nil)
+           ,(cl:let ((slot-names (mapcar #'first slots)))
+              (labels ((print-slot-and-name (name value-form)
+                         `(cl:prog2
+                            (pprint-newline :linear ,stream)
+                              (format ,stream "~a: ~a;" ',name ,value-form)))
+                       (print-slot-form (slot)
+                         (print-slot-and-name slot slot)))
+                `(with-slots ,slot-names ,this
+                   (when (type-already-computed-p ,this)
+                     ,(print-slot-and-name 'type `(typed-node-type ,this)))
+                   ,@(mapcar #'print-slot-form slot-names)))))))))
+
 (defmacro defexpr (name slots)
-  `(gefjon-utils:defclass ,name ,slots :superclasses (typed-node)))
+  `(prog1
+       (gefjon-utils:defclass ,name ,slots :superclasses (typed-node))
+     (derive-print-object-for-expr ,name ,slots)))
 
 (defenum expr
-    (symbol ; denoting a variable
+    ((variable ((name symbol)))
      (quote ((it syntax:literal)))
      (funcall ((function expr)
                (arg expr)))
@@ -86,7 +106,7 @@
 
 TODO: handle the edge case of invoking a function on no arguments by transforming into an invocation of one empty argument"
   (reduce #'make-funcall (mapcar #'parse (syntax:funcall-args funcall))
-          :initial-value (syntax:funcall-function funcall)))
+          :initial-value (parse (syntax:funcall-function funcall))))
 
 (defmethod parse ((lambda syntax:lambda))
   "transform (lambda (a b) (c d)) into (lambda a (lambda b (progn c d)))
@@ -137,7 +157,7 @@ edge case: parses (let () a b) into (progn a b)"
     ;; `HM:|true|' and `HM:|false|', even though they should already
     ;; be transformed by `SYNTAX:PARSE'
     (syntax:boolean-literal (make-quote (syntax:parse-boolean symbol)))
-    (symbol symbol)))
+    (symbol (make-variable symbol))))
 
 (defmethod parse (clause)
   "quote literals; error otherwise"

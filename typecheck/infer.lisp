@@ -48,8 +48,8 @@
         (setf (ir1:typed-node-type expr) type)
         (values type constraints))))
 
-(defmethod infer ((expr symbol) type-env)
-  (instantiate (type-env-lookup type-env expr)))
+(defmethod infer ((expr ir1:variable) type-env)
+  (instantiate (type-env-lookup type-env (ir1:variable-name expr))))
 
 (defmethod infer ((expr ir1:funcall) type-env)
   (multiple-value-bind (func-type func-constraints) (infer (ir1:funcall-function expr)
