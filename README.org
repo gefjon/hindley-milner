@@ -1,0 +1,68 @@
+* a hindley-milner type-inferred language
+  i've been hacking in my free time on a compiler for a hindley-milner
+  type-inferred language. this codebase represents the latest iteration of my
+  work --- i first implemented the type-checking algorithm (and did some other
+  hacking) in [[https://github.com/gefjon/write-you-a-haskell][a now-archived repository]] as i translated [[http://dev.stephendiehl.com/fun/006_hindley_milner.html][a chapter of stephen
+  diehl's "write you a haskell"]], and am re-implementing it here in the hopes of
+  building a fully-fledged compiler around it.
+** building
+   clone this repo into ~~/quicklisp/local-projects/~:
+   #+BEGIN_SRC sh
+     hub clone gefjon/hindley-milner ~/quicklisp/local-projects/hindley-milner
+   #+END_SRC
+   then load the system:
+   #+BEGIN_SRC lisp
+     (ql:quickload :hindley-milner)
+   #+END_SRC
+** usage
+   this is a still an experimental project --- i haven't even started to think
+   about code generation or execution strategy. you can try whatever i have
+   built so far by doing:
+   #+BEGIN_SRC lisp
+     (hindley-milner/compile:compile "examples/simple.hm")
+   #+END_SRC
+   as of writing <2019-12-07>, this reads the file, parses it as [[file:syntax.lisp][surface
+   syntax]], transforms it into [[file:ir1.lisp][ir1]], and [[file:typecheck.lisp][annotates the ir1]] with [[file:typecheck/infer.lisp][inferred type
+   information]].
+** about the code
+*** package-inferred-system
+    this project uses [[https://common-lisp.net/project/asdf/asdf/The-package_002dinferred_002dsystem-extension.html][asdf's package-inferred-system]]. this means that every
+    source file starts with a ~uiop:define-package~ form whose name is based on
+    the filename. for example, [[file:typecheck.lisp][typecheck.lisp]]'s form is:
+    #+BEGIN_SRC lisp
+     (uiop:define-package :hindley-milner/typecheck
+       ;; options
+       )
+    #+END_SRC
+    and [[file:typecheck/infer.lisp][typecheck/infer.lisp]]'s form is:
+    #+BEGIN_SRC lisp
+      (uiop:define-package :hindley-milner/typecheck/infer
+        ;; options
+        )
+    #+END_SRC
+    asdf traces build dependencies through the options passed to
+    ~uiop:define-package~, rooted in the ~:depends-on~ clause of [[file:hindley-milner.asd][the defsystem
+    form]].
+
+    as of writing <2019-12-07>, the build order probably looks something like:
+    - [[file:defenum.lisp][defenum.lisp]]
+    - [[file:syntax.lisp][syntax.lisp]]
+    - [[file:typecheck/type.lisp][typecheck/type.lisp]]
+    - [[file:ir1.lisp][ir1.lisp]]
+    - [[file:typecheck/substitute.lisp][typecheck/substitute.lisp]]
+    - [[file:typecheck/infer.lisp][typecheck/infer.lisp]]
+    - [[file:typecheck/unify.lisp][typecheck/unify.lisp]]
+    - [[file:typecheck.lisp][typecheck.lisp]]
+    - [[file:compile.lisp][compile.lisp]]
+    but i'm not sure exactly, because the point of this whole endeavor is that
+    asdf computes a build order from the dependency graph without me having to
+    think about it.
+
+    anyway, the reason you need to be aware of this at all is that you can't
+    introduce loops into the dependency graph, so no mutually-dependent
+    files/packages! check for this before adding a new dependency to a
+    package/file.
+
+    also, it means you can't ~:use~ or ~:import-from~ a package by nickname,
+    because then asdf won't be able to find the system. e.g. you have to ~(:use
+    :iterate)~, not ~:iter~.
