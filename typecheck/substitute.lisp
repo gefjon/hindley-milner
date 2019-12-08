@@ -2,6 +2,7 @@
     (:nicknames :substitute)
   (:mix :hindley-milner/typecheck/type :trivial-types :cl :iterate)
   (:import-from :alexandria)
+  (:import-from :hindley-milner/ir1)
   (:export :substitution :apply-substitution :instantiate :generalize))
 (cl:in-package :hindley-milner/typecheck/substitute)
 
