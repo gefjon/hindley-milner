@@ -88,15 +88,13 @@
           (values then-type
                   (append if-constraints pred-constraints then-constraints else-constraints)))))))
 
-(defmethod infer ((expr ir1:progn) type-env)
-  (iter
-    (for side-effect-expr in (ir1:progn-side-effects expr))
-    (for (values expr-type expr-constraints) = (infer side-effect-expr type-env))
-    (appending expr-constraints into side-effect-constraints)
-    (finally
-     (multiple-value-bind (return-type return-constraints) (infer (ir1:progn-return-value expr) type-env)
-       (return (values return-type
-                       (append side-effect-constraints return-constraints)))))))
+(defmethod infer ((expr ir1:prog2) type-env)
+  (multiple-value-bind (side-effect-type side-effect-constraints)
+      (infer (ir1:prog2-side-effect expr) type-env)
+    (declare (ignore side-effect-type))
+    (multiple-value-bind (return-type return-constraints)
+        (infer (ir1:prog2-return-value expr) type-env)
+      (values return-type (append side-effect-constraints return-constraints)))))
 
 (defmethod infer ((expr ir1:quote) type-env)
   (declare (ignorable type-env))

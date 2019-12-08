@@ -3,7 +3,7 @@
   (:nicknames :ir1)
   (:import-from :hindley-milner/syntax
                 :literal :clause)
-  (:shadow :funcall :lambda :let :quote :if :binop :type :progn :variable)
+  (:shadow :funcall :lambda :let :quote :if :binop :type :prog2 :variable)
   (:export
 
    :typed-node :typed-node-type :type-already-computed-p
@@ -16,7 +16,7 @@
    :let :make-let :let-binding :let-initform :let-body
    :if :make-if :if-predicate :if-then-case :if-else-case
    :binop :make-binop :binop-op :binop-lhs :binop-rhs
-   :progn :make-progn :progn-side-effects :progn-return-value
+   :prog2 :make-prog2 :prog2-side-effect :prog2-return-value
 
    :parse :parse-program))
 (cl:in-package :hindley-milner/ir1)
@@ -78,7 +78,7 @@
      (binop ((op syntax:operator)
              (lhs expr)
              (rhs expr)))
-     (progn ((side-effects (proper-list expr))
+     (prog2 ((side-effect expr)
              (return-value expr))))
   :defstruct defexpr)
 
@@ -95,11 +95,7 @@
          ;;
          ;; (make-progn (subseq progn 0 (1- (length progn)))
          ;;             (car (last progn)))
-         (let* ((backwards (reverse progn))
-                           (return-value (parse (first backwards)))
-                           (side-effects-backwards (rest backwards))
-                           (side-effects (nreverse (mapcar #'parse side-effects-backwards))))
-                      (make-progn side-effects return-value)))))
+         (reduce #'make-prog2 progn :key #'parse))))
 
 (defmethod parse ((funcall syntax:funcall))
   "transform (funcall a b c) into (funcall (funcall a b) c)
