@@ -15,7 +15,7 @@
    :quote :make-quote :quote-it
    :funcall :make-funcall :funcall-function :funcall-arg
    :lambda :make-lambda :lambda-binding :lambda-body
-   :let :make-let :let-binding :let-initform :let-body
+   :let :make-let :let-binding :let-scheme :let-scheme-boundp :let-internal-env :let-internal-env-boundp :let-initform :let-body
    :if :make-if :if-predicate :if-then-case :if-else-case
    :binop :make-binop :binop-op :binop-lhs :binop-rhs
    :prog2 :make-prog2 :prog2-side-effect :prog2-return-value
@@ -43,21 +43,21 @@
   (slot-boundp typed-node 'type))
 
 (defmacro derive-print-object-for-expr (name slots)
-  (alexandria:with-gensyms (this stream)
-    (cl:let ((slot-names (mapcar #'first slots)))
-      (labels ((print-slot-and-name (name value-form)
-                 `(cl:prog2
-                      (pprint-newline :linear ,stream)
-                      (format ,stream "~a: ~a;" ',name ,value-form)))
-               (print-slot-form (slot)
-                 (print-slot-and-name slot slot)))
-        `(defmethod print-object ((,this ,name) ,stream)
-           (pprint-logical-block (,stream nil)
-             (print-unreadable-object (,this ,stream :type t :identity nil)
-               (with-slots ,slot-names ,this
-                 (when (type-already-computed-p ,this)
-                   ,(print-slot-and-name 'type `(typed-node-type ,this)))
-                 ,@(mapcar #'print-slot-form slot-names)))))))))
+  "generate a `print-object' method for the class `name' which prints the names and values of `slots'
+
+`slots' should be a list of slot-descriptors, as passed to `defenum' and `defexpr'."
+  (cl:let ((slot-names (cons 'type (mapcar #'first slots))))
+    (labels ((print-slot-and-name (name value-form)
+               `(when (slot-boundp this ',name)
+                  (pprint-newline :linear stream)
+                  (format stream "~a: ~a;" ',name ,value-form)))
+             (print-slot-form (slot)
+               (print-slot-and-name slot slot)))
+      `(defmethod print-object ((this ,name) stream)
+         (pprint-logical-block (stream nil)
+           (print-unreadable-object (this stream :type t :identity nil)
+             (with-slots ,slot-names this
+               ,@(mapcar #'print-slot-form slot-names))))))))
 
 (defmacro defexpr (name slots)
   `(prog1
@@ -72,6 +72,8 @@
      (lambda ((binding symbol)
               (body expr)))
      (let ((binding symbol)
+           (scheme type-scheme :init-unbound t)
+           (internal-env type-env :init-unbound t)
            (initform expr)
            (body expr)))
      (if ((predicate expr)

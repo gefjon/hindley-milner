@@ -74,6 +74,8 @@
   (multiple-value-bind (value-type value-constraints) (infer (ir1:let-initform expr) type-env)
     (let* ((value-scheme (generalize value-type type-env))
            (local-env (acons (ir1:let-binding expr) value-scheme type-env)))
+      (setf (ir1:let-scheme expr) value-scheme
+            (ir1:let-internal-env expr) local-env)
       (multiple-value-bind (return-type body-constraints)
           (infer (ir1:let-body expr) local-env)
         (values return-type
