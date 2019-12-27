@@ -1,0 +1,28 @@
+* musings of mine
+  i don't claim that any of these ideas are original, but typing them out helps
+  me to understand them.
+** typing continuations
+   oh, this is just ~block~ and ~return-from~, only ~return-from~ is a
+   procedure ~return-type -> never~, where ~return-type~ (the procedure's input
+   type), is the return type of the block, and ~never~ is the type that unifies
+   with everything, or the type of procedures that never return, or the empty
+   type, or whatever. you make it a first-class closure, complete with saved
+   local state. to accomplish this, write a sexy compiler with a strict type
+   system that carefully controls mutability, and do tracing to detect which
+   parts of state you have to save. use efficient generational garbage
+   collection (with a special case for concurrent shared memory) rather than a
+   stack (similar to how chicken scheme works, i guess?)
+
+   also, for some reason, it's better to do delimited continuations --- i
+   suppose this makes the "what state do i need to save" analysis easier. you
+   introduce another form, ~delimit~, with the nesting rule that each ~block~
+   is nested within a ~delimit~, and each ~return-from~ is nested within a
+   ~block~.
+** ir2
+*** fuse curried functions
+*** extract and hoist closure code
+    making closure locals into explicit arguments in the functions
+
+    assign each closure a gensym, and make the closure objects hold a gensym
+    (which identifies the code to run) and a table of local values, which are
+    passed as arguments on invocation.
