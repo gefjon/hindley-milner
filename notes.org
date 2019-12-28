@@ -26,3 +26,7 @@
     assign each closure a gensym, and make the closure objects hold a gensym
     (which identifies the code to run) and a table of local values, which are
     passed as arguments on invocation.
+*** split bindings into varieties
+    top-level ~let~ s turn into either function definitions or global
+    variables. expression-level ~let~ s turn into either closures (see above)
+    or local variables.

@@ -33,6 +33,8 @@
 ;; 
 ;; - literals are tagged with a quote
 
+;; ir1 nodes are not typed when constructed, but they have type
+;; information added to them during inference
 (defclass typed-node ()
   ((type :accessor typed-node-type
          :type type)))
