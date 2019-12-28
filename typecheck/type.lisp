@@ -6,7 +6,7 @@
   (:export
 
    :type
-   :type-primitive :make-type-primitive :type-primitive-name :*boolean* :*fixnum*
+   :type-primitive :make-type-primitive :type-primitive-name :*boolean* :*fixnum* :*void*
    :-> :make--> :->-input :->-output
    
    :new-type-variable
@@ -26,6 +26,7 @@
 
 (defvar *boolean* (make-type-primitive 'cl:boolean))
 (defvar *fixnum* (make-type-primitive 'cl:fixnum))
+(defvar *void* (make-type-primitive 'cl:null))
 
 (defun new-type-variable (&optional (name "type-variable-"))
   (let ((name-string (etypecase name
