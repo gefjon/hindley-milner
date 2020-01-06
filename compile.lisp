@@ -14,5 +14,4 @@
 (defun compile (filename)
   (let* ((surface-syntax (read-program-from-file filename))
          (ir1 (parse-program surface-syntax)))
-    (infer-program-types ir1)
-    ir1))
+    (infer-program-types ir1)))

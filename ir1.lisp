@@ -1,5 +1,5 @@
 (uiop:define-package :hindley-milner/ir1
-    (:use :hindley-milner/defenum :trivial-types :cl)
+    (:mix :hindley-milner/defenum :trivial-types :cl)
   (:shadowing-import-from :hindley-milner/typecheck/type
                           :type)
   (:nicknames :ir1)
@@ -33,39 +33,6 @@
 ;; 
 ;; - literals are tagged with a quote
 
-;; ir1 nodes are not typed when constructed, but they have type
-;; information added to them during inference
-(defclass typed-node ()
-  ((type :accessor typed-node-type
-         :type type)))
-
-(declaim (ftype (function (typed-node) boolean)
-                type-already-computed-p))
-(defun type-already-computed-p (typed-node)
-  (slot-boundp typed-node 'type))
-
-(defmacro derive-print-object-for-expr (name slots)
-  "generate a `print-object' method for the class `name' which prints the names and values of `slots'
-
-`slots' should be a list of slot-descriptors, as passed to `defenum' and `defexpr'."
-  (cl:let ((slot-names (cons 'type (mapcar #'first slots))))
-    (labels ((print-slot-and-name (name value-form)
-               `(when (slot-boundp this ',name)
-                  (pprint-newline :linear stream)
-                  (format stream "~a: ~a;" ',name ,value-form)))
-             (print-slot-form (slot)
-               (print-slot-and-name slot slot)))
-      `(defmethod print-object ((this ,name) stream)
-         (pprint-logical-block (stream nil)
-           (print-unreadable-object (this stream :type t :identity nil)
-             (with-slots ,slot-names this
-               ,@(mapcar #'print-slot-form slot-names))))))))
-
-(defmacro defexpr (name slots)
-  `(prog1
-       (gefjon-utils:defclass ,name ,slots :superclasses (typed-node))
-     (derive-print-object-for-expr ,name ,slots)))
-
 (defenum expr
     ((variable ((name symbol)))
      (quote ((it syntax:literal)))
@@ -74,8 +41,6 @@
      (lambda ((binding symbol)
               (body expr)))
      (let ((binding symbol)
-           (scheme type-scheme :init-unbound t)
-           (internal-env type-env :init-unbound t)
            (initform expr)
            (body expr)))
      (if ((predicate expr)
@@ -85,8 +50,7 @@
              (lhs expr)
              (rhs expr)))
      (prog2 ((side-effect expr)
-             (return-value expr))))
-  :defstruct defexpr)
+             (return-value expr)))))
 
 (defgeneric parse (clause)
   (:documentation "transform a `SYNTAX:CLAUSE' into an `IR1:CLAUSE'"))

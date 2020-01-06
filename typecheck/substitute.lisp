@@ -1,6 +1,6 @@
 (uiop:define-package :hindley-milner/typecheck/substitute
     (:nicknames :substitute)
-  (:mix :hindley-milner/typecheck/type :trivial-types :cl :iterate)
+  (:mix :hindley-milner/subst :hindley-milner/typecheck/type :trivial-types :cl :iterate)
   (:import-from :alexandria)
   (:import-from :hindley-milner/ir1)
   (:export :substitution :apply-substitution :instantiate :generalize))
@@ -9,30 +9,11 @@
 (deftype substitution ()
   '(association-list symbol type))
 
-(defgeneric apply-substitution (substitution target))
-
-(defmethod apply-substitution (substitution (target symbol))
-  (alexandria:if-let (assoc (assoc target substitution))
-    (cdr assoc)
-    target))
-
-(defmethod apply-substitution (substitution (target type-primitive))
-  (declare (ignorable substitution))
-  target)
-
-(defmethod apply-substitution (substitution (target ->))
-  (flet ((recurse (target) (apply-substitution substitution target)))
-    (make--> (recurse (->-input target))
-             (recurse (->-output target)))))
-
-(defmethod apply-substitution (substitution (target cons))
-  (flet ((recurse (target) (apply-substitution substitution target)))
-    (cons (recurse (car target))
-          (recurse (cdr target)))))
-
-(defmethod apply-substitution (substitution (target null))
-  (declare (ignorable substitution))
-  target)
+(defun apply-substitution (substitution target)
+  (iter (with tree = target)
+    (for (old . new) in substitution)
+    (setf tree (subst new old tree))
+    (finally (return tree))))
 
 (declaim (ftype (function (type-scheme) type)
                 instantiate))

@@ -1,10 +1,10 @@
 (uiop:define-package :hindley-milner/defenum
-  (:use :cl)
+  (:mix :hindley-milner/subst :cl)
   (:nicknames :enum)
   (:export :defenum))
 (cl:in-package :hindley-milner/defenum)
 
-(defmacro defenum (type-name variants &key (defstruct 'gefjon-utils:defstruct))
+(defmacro defenum (type-name variants &key (defstruct 'defstruct-with-subst))
   (flet ((define-variant (variant)
            (etypecase variant
              (symbol nil)
