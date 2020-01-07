@@ -15,7 +15,9 @@
    :let :make-let :let-type :let-binding :let-scheme :let-initform :let-body
    :if :make-if :if-type :if-predicate :if-then-case :if-else-case
    :binop :make-binop :binop-type :binop-op :binop-lhs :binop-rhs
-   :prog2 :make-prog2 :prog2-type :prog2-side-effect-prog2-return-value))
+   :prog2 :make-prog2 :prog2-type :prog2-side-effect :prog2-return-value
+
+   :expr-type))
 (cl:in-package :hindley-milner/typecheck/typed-ir1)
 
 (defenum expr
@@ -46,3 +48,6 @@
      (prog2 ((type type)
              (side-effect expr)
              (return-value expr)))))
+
+(defun expr-type (expr)
+  (slot-value expr 'type))

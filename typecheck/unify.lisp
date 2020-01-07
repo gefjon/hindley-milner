@@ -50,5 +50,5 @@
                                              ()))))
 
 (defmethod unify ((lhs type-primitive) (rhs type-primitive))
-  (unless (eq lhs rhs)
+  (unless (equalp lhs rhs)
     (error "cannot unify ~s with ~s" lhs rhs)))
