@@ -30,3 +30,16 @@
     top-level ~let~ s turn into either function definitions or global
     variables. expression-level ~let~ s turn into either closures (see above)
     or local variables.
+*** monomorphize
+    collect ~let~-bindings as polymorphic values, which are associated with
+    symbols, rather than indices. whenever expression code accesses a
+    poly-value, monomorphize it & associate it with an index. figure out how to
+    avoid duplicating monomorphizations. by the end of the ir2 transformation,
+    the program text will reference monomorphized values by index; you can then
+    discard the set of polymorphic values.
+** add ir1.5
+   ir1 but typed -- remove types from ir1 and add another intermediate
+   language. instead of annotating ir1 nodes in ~infer~, cons the new ir. this
+   will simplify things overall. also, monomorphize at this stage. or during
+   unification? -- only add one ir total for both, and cons it at the same time
+   you monomorphize.
