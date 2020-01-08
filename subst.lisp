@@ -17,6 +17,11 @@
 (defmacro define-subst (class-name &body body)
   "define how `HINDLEY-MINLER/SUBST:SUBST' should recurse into instances of CLASS-NAME
 
+CLASS-NAME is bound in BODY to the instance being recursed into (the
+TREE argument to `SUBST'), and `RECURSE' is bound to a function of one
+argument which passes that argument as TREE to `SUBST'. BODY should
+probably be a call to a constructor for CLASS-NAME.
+
 for example, the method for `CONS' is defined as:
   (DEFINE-SUBST CONS
     (CONS (RECURSE (CAR CONS))
@@ -35,7 +40,7 @@ for example, the method for `CONS' is defined as:
 (defun subst (new old tree &key (test #'eql))
   "a generic version of `CL:SUBST', capable of recurring on trees other than `CONS'
 
-define recursive methods using `DEFINE-SUBST'"
+define recursive methods using `HINDLEY-MILNER/SUBST:DEFINE-SUBST'"
   (if (funcall test old tree)
       new
       (subst-recurse new old tree test)))
@@ -51,6 +56,7 @@ SLOTS should be a list of symbols which name slots of CLASS"
                     (,constructor ,@(mapcar #'recurse-form slots))))))
 
 (defmacro defstruct-with-subst (name slots)
+  "like `GEFJON-UTILS:DEFSTRUCT', but also generates a method for `HINDLEY-MILNER/SUBST:SUBST-RECURSE'"
   `(prog1 (gefjon-utils:defstruct ,name ,slots)
      (derive-define-subst-for-struct ,name
                                    ,(gefjon-utils:constructor-name name)

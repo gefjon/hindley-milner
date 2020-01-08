@@ -133,6 +133,7 @@ edge case: parses (let () a b) into (progn a b)"
 (declaim (ftype (function (syntax:program) expr)
                 parse-program))
 (defun parse-program (program)
+  "transform a `SYNTAX:PROGRAM' into an `IR1:EXPR'"
   (reduce #'let-from-definition (syntax:program-definitions program)
           :from-end t
           :initial-value (parse (syntax:program-entry program))))

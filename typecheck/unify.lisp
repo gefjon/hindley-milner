@@ -11,6 +11,7 @@
 (declaim (ftype (function (constraints) substitution)
                 solve))
 (defun solve (constraints)
+  "returns a unifying `SUBSTITUTION' for CONSTRAINTS."
   (labels ((recursive-solve (constraints partial-subst)
            (if (null constraints)
                (return-from solve partial-subst)
@@ -27,7 +28,7 @@
   (unify (constraint-lhs constraint) (constraint-rhs constraint)))
 
 (defgeneric unify (lhs rhs)
-  (:documentation "returns a unifying `SUBSTITUTION'"))
+  (:documentation "returns a unifying `SUBSTITUTION' for the constraint that LHS and RHS are the same type"))
 
 (declaim (ftype (function (symbol type) substitution)
                 bind))
@@ -50,5 +51,6 @@
                                              ()))))
 
 (defmethod unify ((lhs type-primitive) (rhs type-primitive))
-  (unless (equalp lhs rhs)
+  (unless (equalp lhs rhs) ;; `EQUALP' so that non-`EQ' primitives
+                           ;; which name the same type can unify
     (error "cannot unify ~s with ~s" lhs rhs)))

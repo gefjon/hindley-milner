@@ -34,7 +34,13 @@
               (body expr)))
      (let ((type type)
            (binding symbol)
-           (scheme type-scheme)
+           (scheme
+             ;; prior to monomorphization, `SCHEME' will hold a
+             ;; `TYPE-SCHEME'. after the monomorphization pass, it
+             ;; will hold a `TYPE' instead. at no point during
+             ;; compilation should nodes with `TYPE-SCHEME's coexist
+             ;; with nodes with `TYPE's in this slot.
+             (or type-scheme type))
            (initform expr)
            (body expr)))
      (if ((type type)

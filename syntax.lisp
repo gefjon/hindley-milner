@@ -109,8 +109,8 @@
   "define a parser for lists starting with HEAD and continuing with LAMBDA-LIST
 
 e.g. (defparse funcall (function &rest args)
-  (make-funcall (parse function)
-                (mapcar #'parse args)))"
+       (make-funcall (parse function)
+                     (mapcar #'parse args)))"
   (cl:let ((head (intern (string-downcase (symbol-name head))
                          (find-package :hindley-milner))))
     (alexandria:with-gensyms (head-arg stuff-arg)

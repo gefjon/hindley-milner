@@ -71,21 +71,44 @@ ENTRY is an `EXPR' other than a `LET' where PROGRAM will begin execution"
     (insert-into-existing-monomorphizations-map globals poly-name mono-type mono-name)
     mono-name))
 
-(defgeneric monomorphize (expr globals))
+(defgeneric monomorphize (expr globals)
+  (:documentation "returns a new `TYPED-IR1:EXPR' that is like EXPR except references to polymorphic values are replaced with monomorphic versions."))
 
 (defmethod monomorphize ((var variable) globals)
   (make-variable
    (variable-type var)
-   (or (find-existing-monomorphization globals (variable-name var) (variable-type var))
-       (add-new-monomorphization globals (variable-name var) (variable-type var)))))
+   (or (find-existing-monomorphization globals
+                                       (variable-name var)
+                                       (variable-type var))
+       (add-new-monomorphization globals
+                                 (variable-name var)
+                                 (variable-type var)))))
 
 (defmethod monomorphize ((quote quote) globals)
   (declare (ignorable globals))
   quote)
 
 (defmacro define-monomorphize (class &body body)
+  "define a method on `MONOMORPHIZE' for CLASS.
+
+CLASS should be a symbol which names a class.
+
+within BODY, the symbol CLASS is bound to the instance being
+monomorphized, and `RECURSE' is bound to a function of one argument
+which calls `MONOMORPHIZE' on its argument with the same `GLOBALS'.
+
+for example:
+
+  (DEFINE-MONOMORPHIZE FUNCALL
+    (MAKE-FUNCALL (FUNCALL-TYPE FUNCALL)
+                  (RECURSE (FUNCALL-FUNCTION FUNCALL))
+                  (RECURSE (FUNCALL-ARG FUNCALL))))
+
+defines a method for the class `FUNCALL' which recurses on its slots
+`FUNCTION' and `ARG', but passes its slot `TYPE' unchanged."
   (with-gensyms (thing globals)
     `(defmethod monomorphize ((,class ,class) ,globals)
+       ,(format nil "`MONOMOPHIZE' method for ~s defined by `DEFINE-MONOMORPHIZE'" class)
        (flet ((recurse (,thing)
                 (monomorphize ,thing ,globals)))
          ,@body))))

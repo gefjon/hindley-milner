@@ -9,6 +9,7 @@
 (cl:in-package :hindley-milner/typecheck)
 
 (defun infer-program-types (ir1-program)
+  "transforms an `IR1:EXPR' into a `TYPED-IR1:EXPR'"
   (multiple-value-bind (inferred-program result-type constraints)
       (infer:infer ir1-program ())
     (declare (ignore result-type))

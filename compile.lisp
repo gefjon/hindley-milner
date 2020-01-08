@@ -8,6 +8,8 @@
    :read-program-from-file)
   (:import-from :hindley-milner/ir1
    :parse-program)
+  (:import-from :hindley-milner/monomorphize
+   :monomorphize-program)
   (:export :compile))
 (cl:in-package :hindley-milner/compile)
 
