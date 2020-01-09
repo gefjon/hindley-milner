@@ -1,6 +1,6 @@
 (uiop:define-package :hindley-milner/typecheck/type
     (:nicknames :type)
-  (:mix :hindley-milner/defenum :trivial-types :cl)
+  (:mix :hindley-milner/subst :hindley-milner/defenum :trivial-types :cl)
   (:import-from :gefjon-utils)
   (:shadow :type)
   (:export
@@ -22,7 +22,16 @@
     (symbol ; denoting a type-variable
      (type-primitive ((name t)))
      (-> ((input type)
-          (output type)))))
+          (output type))))
+  ;; intentionally avoid auto-generating `SUBST-RECURSE' methods
+  ;; because you shouldn't recurse into `TYPE-PRIMITIVE'
+  :defstruct gefjon-utils:defstruct)
+
+;; `->' still gets a `SUBST-RECURSE' method, tho
+(define-subst ->
+  (make-->
+   (recurse (->-input ->))
+   (recurse (->-output ->))))
 
 (defvar *boolean* (make-type-primitive 'cl:boolean))
 (defvar *fixnum* (make-type-primitive 'cl:fixnum))

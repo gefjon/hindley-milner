@@ -51,6 +51,5 @@
                                              ()))))
 
 (defmethod unify ((lhs type-primitive) (rhs type-primitive))
-  (unless (equalp lhs rhs) ;; `EQUALP' so that non-`EQ' primitives
-                           ;; which name the same type can unify
+  (unless (eq lhs rhs)
     (error "cannot unify ~s with ~s" lhs rhs)))

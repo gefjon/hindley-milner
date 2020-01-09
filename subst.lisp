@@ -34,8 +34,8 @@ for example, the method for `CONS' is defined as:
          ,@body))))
 
 (define-subst cons
-    (cons (recurse (car cons))
-          (recurse (cdr cons))))
+  (cons (recurse (car cons))
+        (recurse (cdr cons))))
 
 (defun subst (new old tree &key (test #'eql))
   "a generic version of `CL:SUBST', capable of recurring on trees other than `CONS'
@@ -53,13 +53,13 @@ SLOTS should be a list of symbols which name slots of CLASS"
            `(recurse ,slot)))
     `(define-subst ,class
        (with-slots ,slots ,class
-                    (,constructor ,@(mapcar #'recurse-form slots))))))
+         (,constructor ,@(mapcar #'recurse-form slots))))))
 
 (defmacro defstruct-with-subst (name slots)
   "like `GEFJON-UTILS:DEFSTRUCT', but also generates a method for `HINDLEY-MILNER/SUBST:SUBST-RECURSE'"
   `(prog1 (gefjon-utils:defstruct ,name ,slots)
      (derive-define-subst-for-struct ,name
-                                   ,(gefjon-utils:constructor-name name)
-                                   ,(mapcar #'first slots))))
+                                     ,(gefjon-utils:constructor-name name)
+                                     ,(mapcar #'first slots))))
 
 

@@ -10,7 +10,8 @@
   (:import-from :alexandria
                 :with-gensyms)
   (:import-from :hindley-milner/typecheck/substitute
-                :apply-substitution))
+   :apply-substitution)
+  (:export :monomorphize-program))
 (cl:in-package :hindley-milner/monomorphize)
 
 (gefjon-utils:defstruct globals
