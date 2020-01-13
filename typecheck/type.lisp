@@ -2,50 +2,58 @@
     (:nicknames :type)
   (:mix :hindley-milner/subst :hindley-milner/defenum :trivial-types :cl)
   (:import-from :gefjon-utils)
+  (:import-from :hindley-milner/ir1)
   (:shadow :type)
   (:export
 
    :type
-   :type-primitive :make-type-primitive :type-primitive-name :*boolean* :*fixnum* :*void*
-   :-> :make--> :->-input :->-output
+   :type-variable :type-variable-name
+   :type-primitive :type-primitive-name :*boolean* :*fixnum* :*void*
+   :-> :->-input :->-output
    
    :new-type-variable
 
-   :type-scheme :make-type-scheme :type-scheme-bindings :type-scheme-body
+   :type-scheme :type-scheme-bindings :type-scheme-body
 
-   :type-env
-
-   :lazy-type-mixin))
+   :type-env :type-env-lookup))
 (cl:in-package :hindley-milner/typecheck/type)
 
-(defenum type
-    (symbol ; denoting a type-variable
-     (type-primitive ((name t)))
-     (-> ((input type)
-          (output type))))
-  ;; intentionally avoid auto-generating `SUBST-RECURSE' methods
-  ;; because you shouldn't recurse into `TYPE-PRIMITIVE'
-  :defstruct gefjon-utils:defstruct)
+(defenum type ()
+  ((type-variable ((name symbol)))
+   (type-primitive ((name t)))
+   (-> ((input type)
+        (output type)))))
 
-;; `->' still gets a `SUBST-RECURSE' method, tho
+;; note that `SUBST' does not recurse into `TYPE-PRIMITIVE' or
+;; `TYPE-VARIABLE', to preserve `EQ' identity on those types
+
 (define-subst ->
-  (make-->
-   (recurse (->-input ->))
-   (recurse (->-output ->))))
+  (make-instance '->
+   :input (recurse (->-input ->))
+   :output (recurse (->-output ->))))
 
-(defvar *boolean* (make-type-primitive 'cl:boolean))
-(defvar *fixnum* (make-type-primitive 'cl:fixnum))
-(defvar *void* (make-type-primitive 'cl:null))
+(defvar *boolean* (make-instance 'type-primitive :name 'cl:boolean))
+(defvar *fixnum* (make-instance 'type-primitive :name 'cl:fixnum))
+(defvar *void* (make-instance 'type-primitive :name 'cl:null))
 
 (defun new-type-variable (&optional (name "type-variable-"))
   (let ((name-string (etypecase name
+                       (type-variable (symbol-name (type-variable-name name)))
                        (symbol (symbol-name name))
                        (string name))))
-    (gensym name-string)))
+    (make-instance 'type-variable
+                   :name (gensym name-string))))
 
-(gefjon-utils:defstruct type-scheme
-  ((bindings (proper-list symbol))
+(gefjon-utils:defclass type-scheme
+  ((bindings (proper-list type-variable))
    (body type)))
 
 (deftype type-env ()
+  "maps term variables to their type schemes"
   '(association-list symbol type-scheme))
+
+(declaim (ftype (function (type-env symbol) type-scheme)
+                type-env-lookup))
+(defun type-env-lookup (type-env symbol)
+  (or (cdr (assoc symbol type-env))
+      (error "symbol ~s unbound in type-env ~s" symbol type-env)))

@@ -2,12 +2,11 @@
     (:nicknames :substitute)
   (:mix :hindley-milner/subst :hindley-milner/typecheck/type :trivial-types :cl :iterate)
   (:import-from :alexandria)
-  (:import-from :hindley-milner/ir1)
   (:export :substitution :apply-substitution :instantiate :generalize))
 (cl:in-package :hindley-milner/typecheck/substitute)
 
 (deftype substitution ()
-  '(association-list symbol type))
+  '(association-list type-variable type))
 
 (defun apply-substitution (substitution target)
   (iter (with tree = target)
@@ -19,18 +18,18 @@
                 instantiate))
 (defun instantiate (type-scheme)
   (flet ((make-substitution-cell (type-var)
-           (cons type-var (gensym (symbol-name type-var)))))
+           (cons type-var (new-type-variable type-var))))
     (apply-substitution (mapcar #'make-substitution-cell (type-scheme-bindings type-scheme))
                         (type-scheme-body type-scheme))))
 
 (defgeneric free-type-variables (within)
-  (:documentation "returns a set of symbols"))
+  (:documentation "returns a set of type-variables"))
 
 (defmethod free-type-variables ((within type-scheme))
   (set-difference (free-type-variables (type-scheme-body within))
                   (type-scheme-bindings within)))
 
-(defmethod free-type-variables ((within symbol))
+(defmethod free-type-variables ((within type-variable))
   (list within))
 
 (defmethod free-type-variables ((within type-primitive))
@@ -52,6 +51,7 @@
 (declaim (ftype (function (type type-env) type-scheme)
                 generalize))
 (defun generalize (type type-env)
-  (make-type-scheme (set-difference (free-type-variables type)
-                                    (type-env-free-variables type-env))
-                    type))
+  (make-instance 'type-scheme
+                 :bindings (set-difference (free-type-variables type)
+                                           (type-env-free-variables type-env))
+                 :body type))

@@ -1,4 +1,5 @@
 (uiop:define-package :hindley-milner/monomorphize
+    (:nicknames :monomorphize)
     (:mix
      :hindley-milner/typecheck/type
      :hindley-milner/typecheck/typed-ir1
@@ -14,13 +15,16 @@
   (:export :monomorphize-program))
 (cl:in-package :hindley-milner/monomorphize)
 
-(gefjon-utils:defstruct globals
+(gefjon-utils:defclass globals
   ((polymorphic-values (association-list symbol expr))
    (monomorphic-values (association-list symbol expr))
    (existing-monomorphizations (association-list symbol (association-list type symbol)))))
 
 (defun make-empty-globals ()
-  (make-globals () () ()))
+  (make-instance 'globals
+                 :polymorphic-values ()
+                 :monomorphic-values ()
+                 :existing-monomorphizations ()))
 
 (defun push-poly-obj (globals let)
   (push (cons (let-binding let)
@@ -76,14 +80,14 @@ ENTRY is an `EXPR' other than a `LET' where PROGRAM will begin execution"
   (:documentation "returns a new `TYPED-IR1:EXPR' that is like EXPR except references to polymorphic values are replaced with monomorphic versions."))
 
 (defmethod monomorphize ((var variable) globals)
-  (make-variable
-   (variable-type var)
-   (or (find-existing-monomorphization globals
-                                       (variable-name var)
-                                       (variable-type var))
-       (add-new-monomorphization globals
-                                 (variable-name var)
-                                 (variable-type var)))))
+  (make-instance 'variable
+                 :type (expr-type var)
+                 :name (or (find-existing-monomorphization globals
+                                                           (variable-name var)
+                                                           (expr-type var))
+                           (add-new-monomorphization globals
+                                                     (variable-name var)
+                                                     (expr-type var)))))
 
 (defmethod monomorphize ((quote quote) globals)
   (declare (ignorable globals))
@@ -115,39 +119,45 @@ defines a method for the class `FUNCALL' which recurses on its slots
          ,@body))))
 
 (define-monomorphize funcall
-    (make-funcall (funcall-type funcall)
-                  (recurse (funcall-function funcall))
-                  (recurse (funcall-arg funcall))))
+  (make-instance 'funcall
+                 :type (expr-type funcall)
+                 :function (recurse (funcall-function funcall))
+                 :arg (recurse (funcall-arg funcall))))
 
 (define-monomorphize lambda
-  (make-lambda (lambda-type lambda)
-               (lambda-binding lambda)
-               (recurse (lambda-body lambda))))
+  (make-instance 'lambda
+                 :type (expr-type lambda)
+                 :function (lambda-binding lambda)
+                 :arg (recurse (lambda-body lambda))))
 
 ;; todo: properly handle polymorphic non-top-level lets
 (define-monomorphize let
-  (make-let (let-type let)
-            (let-binding let)
-            (let-scheme let)
-            (recurse (let-initform let))
-            (recurse (let-body let))))
+  (make-instance 'let
+                 :type (expr-type let)
+                 :binding (let-binding let)
+                 :scheme (let-scheme let)
+                 :initform (recurse (let-initform let))
+                 :body (recurse (let-body let))))
 
 (define-monomorphize if
-  (make-if (if-type if)
-           (recurse (if-predicate if))
-           (recurse (if-then-case if))
-           (recurse (if-else-case if))))
+  (make-instance 'if
+                 :type (expr-type if)
+                 :predicate (recurse (if-predicate if))
+                 :then-case (recurse (if-then-case if))
+                 :else-case (recurse (if-else-case if))))
 
 (define-monomorphize binop
-  (make-binop (binop-type binop)
-              (binop-op binop)
-              (recurse (binop-lhs binop))
-              (recurse (binop-rhs binop))))
+  (make-instance 'binop
+                 :type (expr-type binop)
+                 :op (binop-op binop)
+                 :lhs (recurse (binop-lhs binop))
+                 :rhs (recurse (binop-rhs binop))))
 
 (define-monomorphize prog2
-  (make-prog2 (prog2-type prog2)
-              (recurse (prog2-side-effect prog2))
-              (recurse (prog2-return-value prog2))))
+  (make-instance 'prog2
+                 :type (expr-type prog2)
+                 :side-effect (recurse (prog2-side-effect prog2))
+                 :return-value (recurse (prog2-return-value prog2))))
 
 (defun monomorphize-program (program)
   "returns (`VALUES' ENTRY GLOBALS)

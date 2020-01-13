@@ -1,7 +1,7 @@
 (uiop:define-package :hindley-milner/syntax
   (:nicknames :syntax)
   (:use :iterate :hindley-milner/defenum :trivial-types :cl :named-readtables)
-  (:shadow :funcall :lambda :let :quote :if :binop)
+  (:shadow :variable :quote :funcall :lambda :let :quote :if :binop)
   (:import-from :alexandria)
   (:export
 
@@ -10,21 +10,23 @@
    :parse-boolean
    :operator
 
-   :definition :make-definition :definition-binding :definition-value
+   :definition :definition-binding :definition-value
    :parse-def
 
    :clause
-   :funcall :make-funcall :funcall-function :funcall-args
-   :lambda :make-lambda :lambda-bindings :lambda-body
-   :let :make-let :let-bindings :let-body
-   :if :make-if :if-predicate :if-then-case :if-else-case
-   :binop :make-binop :binop-op :binop-lhs :binop-rhs
+   :variable :variable-name
+   :quote :quote-it
+   :funcall :funcall-function :funcall-args
+   :lambda :lambda-bindings :lambda-body
+   :let :let-bindings :let-body
+   :if :if-predicate :if-then-case :if-else-case
+   :binop :binop-op :binop-lhs :binop-rhs
 
    :parse
 
    :hindley-milner ;; names the readtable
 
-   :program :make-program :program-definitions :program-entry
+   :program :program-definitions :program-entry
    :read-program-from-file))
 (cl:in-package :hindley-milner/syntax)
 
@@ -53,20 +55,15 @@
       (hm:|false| nil)))
 
 ;; booleans aren't really literals, because there's no way to get the
-;; reader to produce one in a hindley-milner source file (other than
-;; typing literally `CL:T' or `CL:NIL'). this is in contrast with
-;; other kinds of literals, which are produced by the reader and
-;; unchanged by parsing.
-;;
-;; to work around this unpleasentness, both the syntax parser and the
-;; ir1 transformer transform the symbols `HM:|true|' and `HM:|false|'
-;; appropriately.
-(defenum literal (fixnum boolean))
+;; reader to produce one in a hindley-milner source file. this is in
+;; contrast with other kinds of literals, which are produced by the
+;; reader and unchanged by parsing.
+(deftype literal () '(or fixnum boolean))
 
 (deftype operator ()
   '(member hm:+ hm:- hm:* hm:/ hm:=))
 
-(gefjon-utils:defstruct definition
+(gefjon-utils:defclass definition
   ((binding symbol)
    (value clause)))
 
@@ -75,29 +72,42 @@
     (unless (eq def 'hm:|def|)
       (error "~a is not a definition" definition))
     (check-type binding symbol)
-    (make-definition binding (parse value))))
+    (make-instance 'definition
+                   :binding binding
+                   :value (parse value))))
 
-(defenum clause
-    (symbol ; denoting a variable
-     literal
-     (funcall ((function clause)
-               (args (proper-list clause))))
-     (lambda ((bindings (proper-list symbol))
-              (body (proper-list clause))))
-     (let ((bindings (proper-list definition))
-           (body (proper-list clause))))
-     (if ((predicate clause)
-          (then-case clause)
-          (else-case clause)))
-     (binop ((op operator)
-             (lhs clause)
-             (rhs clause)))))
+(defenum clause ()
+  ((variable ((name symbol)))
+   (quote ((it literal)))
+   (funcall ((function clause)
+             (args (proper-list clause))))
+   (lambda ((bindings (proper-list symbol))
+            (body (proper-list clause))))
+   (let ((bindings (proper-list definition))
+         (body (proper-list clause))))
+   (if ((predicate clause)
+        (then-case clause)
+        (else-case clause)))
+   (binop ((op operator)
+           (lhs clause)
+           (rhs clause)))))
 
-(defun parse (thing)
-  (etypecase thing
-    (boolean-literal (parse-boolean thing)) ; keep this clause before `SYMBOL', so `HM:|true|' parses as `CL:T'
-    ((or symbol literal) thing)
-    (cons (apply #'parse-list thing))))
+(defgeneric parse (thing)
+  (:documentation "parse an object produced by `READ' into a `SYNTAX:CLAUSE'"))
+
+(defmethod parse ((thing (eql 'hm:|true|)))
+  (declare (ignorable thing))
+  (make-instance 'quote :it t))
+(defmethod parse ((thing (eql 'hm:|false|)))
+  (declare (ignorable thing))
+  (make-instance 'quote :it nil))
+(defmethod parse ((thing fixnum))
+  (make-instance 'quote :it thing))
+(defmethod parse ((thing cons))
+  (apply #'parse-list thing))
+
+(defmethod parse ((symbol symbol))
+  (make-instance 'variable :name symbol))
 
 (defun parse-body (body)
   (mapcar #'parse body))
@@ -109,8 +119,9 @@
   "define a parser for lists starting with HEAD and continuing with LAMBDA-LIST
 
 e.g. (defparse funcall (function &rest args)
-       (make-funcall (parse function)
-                     (mapcar #'parse args)))"
+       (make-instance 'funcall
+                      :function (parse function)
+                      :args (mapcar #'parse args)))"
   (cl:let ((head (intern (string-downcase (symbol-name head))
                          (find-package :hindley-milner))))
     (alexandria:with-gensyms (head-arg stuff-arg)
@@ -122,38 +133,48 @@ e.g. (defparse funcall (function &rest args)
 
 (defmethod parse-list ((head symbol) &rest args)
   "fallthrough method for named funcalls, so that (foo bar baz) parses as (funcall foo bar baz)"
-  (make-funcall head
-                (parse-body args)))
+  (make-instance 'funcall
+                 :function (parse head)
+                 :args (parse-body args)))
 
 (defparse funcall (function &rest args)
-  (make-funcall (parse function)
-                (parse-body args)))
+  (make-instance 'funcall
+                 :function (parse function)
+                 :arg (parse-body args)))
 
 (defparse lambda (lambda-list &body body)
   (flet ((check-symbol (symbol)
            (unless (typep symbol 'symbol)
              (error "non-symbol ~s in `LAMBDA-LIST'" symbol))))
-    (make-lambda (mapc #'check-symbol lambda-list)
-                 (parse-body body))))
+    (make-instance 'lambda
+                   :bindings (mapc #'check-symbol lambda-list)
+                   :body (parse-body body))))
 
 (defparse let (bindings &body body)
   (flet ((parse-binding (binding)
            (destructuring-bind (symbol value) binding
              (check-type symbol symbol)
-             (make-definition symbol (parse value)))))
-    (make-let (mapcar #'parse-binding bindings)
-              (parse-body body))))
+             (make-instance 'definition
+                            :binding symbol
+                            :value (parse value)))))
+    (make-instance 'let
+                   :bindings (mapcar #'parse-binding bindings)
+                   :body (parse-body body))))
 
 (defparse if (predicate then-clause else-clause)
-  (make-if (parse predicate)
-           (parse then-clause)
-           (parse else-clause)))
+  (make-instance 'if
+                 :predicate (parse predicate)
+                 :then-case (parse then-clause)
+                 :else-case (parse else-clause)))
 
 (defparse binop (op lhs rhs)
   (check-type op operator)
-  (make-binop op (parse lhs) (parse rhs)))
+  (make-instance 'binop
+                 :op op
+                 :lhs (parse lhs)
+                 :rhs (parse rhs)))
 
-(gefjon-utils:defstruct program
+(gefjon-utils:defclass program
   ((definitions (proper-list definition))
    (entry clause)))
 
@@ -171,5 +192,6 @@ e.g. (defparse funcall (function &rest args)
         (push (parse-def entry) definitions))
       (setf entry form)
       (finally (return
-                 (make-program (reverse definitions)
-                               (parse entry)))))))
+                 (make-instance 'program
+                                :definitions (reverse definitions)
+                                :entry (parse entry)))))))

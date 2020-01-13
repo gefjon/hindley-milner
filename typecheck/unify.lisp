@@ -30,18 +30,21 @@
 (defgeneric unify (lhs rhs)
   (:documentation "returns a unifying `SUBSTITUTION' for the constraint that LHS and RHS are the same type"))
 
-(declaim (ftype (function (symbol type) substitution)
+(declaim (ftype (function (type-variable type) substitution)
                 bind))
 (defun bind (tvar type)
   (acons tvar type '()))
 
-(defmethod unify ((lhs symbol) rhs)
+(defmethod unify :around (lhs rhs)
+  "avoid generating redundant constraints for types which are already `EQ'"
   (unless (eq lhs rhs)
-    (bind lhs rhs)))
+    (call-next-method)))
 
-(defmethod unify (lhs (rhs symbol))
-  (unless (eq rhs lhs)
-    (bind rhs lhs)))
+(defmethod unify ((lhs type-variable) rhs)
+  (bind lhs rhs))
+
+(defmethod unify (lhs (rhs type-variable))
+  (bind rhs lhs))
 
 (defmethod unify ((lhs ->) (rhs ->))
   (solve (constraint-acons (->-input lhs)
@@ -49,7 +52,3 @@
                            (constraint-acons (->-output lhs)
                                              (->-output rhs)
                                              ()))))
-
-(defmethod unify ((lhs type-primitive) (rhs type-primitive))
-  (unless (eq lhs rhs)
-    (error "cannot unify ~s with ~s" lhs rhs)))
