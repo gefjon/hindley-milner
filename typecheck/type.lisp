@@ -24,13 +24,11 @@
    (-> ((input type)
         (output type)))))
 
-;; note that `SUBST' does not recurse into `TYPE-PRIMITIVE' or
-;; `TYPE-VARIABLE', to preserve `EQ' identity on those types
+;; note that `SUBST' does not recurse into `TYPE-PRIMITIVE', because
+;; `TYPE-PRIMITIVE-NAME's should not be substituted
 
-(define-subst ->
-  (make-instance '->
-   :input (recurse (->-input ->))
-   :output (recurse (->-output ->))))
+(subst:recurse-on-slots ->
+  input output)
 
 (defvar *boolean* (make-instance 'type-primitive :name 'cl:boolean))
 (defvar *fixnum* (make-instance 'type-primitive :name 'cl:fixnum))
@@ -47,6 +45,9 @@
 (gefjon-utils:defclass type-scheme
   ((bindings (proper-list type-variable))
    (body type)))
+
+(subst:recurse-on-slots type-scheme
+  bindings body)
 
 (deftype type-env ()
   "maps term variables to their type schemes"

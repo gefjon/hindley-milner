@@ -35,8 +35,8 @@
            ;; should nodes with `TYPE-SCHEME's coexist with nodes with
            ;; `TYPE's in this slot.
            (or type-scheme type))
-           (initform expr)
-           (body expr)))
+         (initform expr)
+         (body expr)))
    (if ((predicate expr)
         (then-case expr)
         (else-case expr)))
@@ -45,3 +45,20 @@
            (rhs expr)))
    (prog2 ((side-effect expr)
            (return-value expr)))))
+
+(subst:recurse-on-slots expr
+  type)
+;; this method is superseded by those below, so each
+;; `RECURSE-ON-SLOTS' below must also list `TYPE'
+(subst:recurse-on-slots funcall
+  type function arg)
+(subst:recurse-on-slots lambda
+  type binding body)
+(subst:recurse-on-slots let
+  type scheme initform body)
+(subst:recurse-on-slots if
+  type predicate then-case else-case)
+(subst:recurse-on-slots binop
+  type lhs rhs)
+(subst:recurse-on-slots prog2
+  type side-effect return-value)

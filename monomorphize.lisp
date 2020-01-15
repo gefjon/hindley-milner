@@ -15,82 +15,82 @@
   (:export :monomorphize-program))
 (cl:in-package :hindley-milner/monomorphize)
 
-(gefjon-utils:defclass globals
+(gefjon-utils:defclass lexenv
   ((polymorphic-values (association-list symbol expr))
    (monomorphic-values (association-list symbol expr))
    (existing-monomorphizations (association-list symbol (association-list type symbol)))))
 
-(defun make-empty-globals ()
-  (make-instance 'globals
+(defun make-empty-lexenv ()
+  (make-instance 'lexenv
                  :polymorphic-values ()
                  :monomorphic-values ()
                  :existing-monomorphizations ()))
 
-(defun push-poly-obj (globals let)
+(defun push-poly-obj (lexenv let)
   (push (cons (let-binding let)
               (let-initform let))
-        (globals-polymorphic-values globals))
+        (lexenv-polymorphic-values lexenv))
   (values))
 
-(defun collect-polymorphic-globals (program)
-  "returns (`VALUES' GLOBALS ENTRY)
+(defun collect-polymorphic-values (program)
+  "returns (`VALUES' LEXENV ENTRY)
 
-where GLOBALS is a `GLOBALS' object whose `POLYMORPHIC' records have been populated, and
+where LEXENV is a `LEXENV' object whose `POLYMORPHIC' records have been populated, and
 ENTRY is an `EXPR' other than a `LET' where PROGRAM will begin execution"
   (iter
-    (with globals = (make-empty-globals))
+    (with lexenv = (make-empty-lexenv))
     (with top-level-expr = program)
     (unless (typep top-level-expr 'let)
-      (return (values globals top-level-expr)))
-    (push-poly-obj globals top-level-expr)
+      (return (values lexenv top-level-expr)))
+    (push-poly-obj lexenv top-level-expr)
     (setf top-level-expr (let-body top-level-expr))))
 
-(defun find-poly-obj-or-error (globals poly-name)
-  (cdr (or (assoc poly-name (globals-polymorphic-values globals))
+(defun find-poly-obj-or-error (lexenv poly-name)
+  (cdr (or (assoc poly-name (lexenv-polymorphic-values lexenv))
            (error "polymorphic value ~s not found" poly-name))))
 
-(defun find-or-push-existing-monomorph-poly-cell (globals poly-name)
-  (or (assoc poly-name (globals-existing-monomorphizations globals))
-      (first (push (cons poly-name nil) (globals-existing-monomorphizations globals)))))
+(defun find-or-push-existing-monomorph-poly-cell (lexenv poly-name)
+  (or (assoc poly-name (lexenv-existing-monomorphizations lexenv))
+      (first (push (cons poly-name nil) (lexenv-existing-monomorphizations lexenv)))))
 
-(defun insert-into-existing-monomorphizations-map (globals poly-name mono-type mono-name)
-  (let* ((cell-for-this-poly (find-or-push-existing-monomorph-poly-cell globals poly-name))
+(defun insert-into-existing-monomorphizations-map (lexenv poly-name mono-type mono-name)
+  (let* ((cell-for-this-poly (find-or-push-existing-monomorph-poly-cell lexenv poly-name))
          (cell-for-this-mono (cons mono-type mono-name)))
     (push cell-for-this-mono (cdr cell-for-this-poly)))
   (values))
 
-(defun find-existing-monomorphization (globals poly-name mono-type)
+(defun find-existing-monomorphization (lexenv poly-name mono-type)
   (cdr (assoc mono-type
-              (cdr (assoc poly-name (globals-existing-monomorphizations globals)))
+              (cdr (assoc poly-name (lexenv-existing-monomorphizations lexenv)))
               :test #'equalp)))
 
-(defun add-new-monomorphization (globals poly-name mono-type)
-  (let* ((poly-expr (find-poly-obj-or-error globals poly-name))
+(defun add-new-monomorphization (lexenv poly-name mono-type)
+  (let* ((poly-expr (find-poly-obj-or-error lexenv poly-name))
          (poly-type (expr-type poly-expr))
          (substitution (unify mono-type poly-type))
          (mono-expr (apply-substitution substitution poly-expr))
          (mono-name (gensym (format nil "~s-~a" poly-name mono-type)))
          (monomorphic-value-cell (cons mono-name mono-expr)))
     (push monomorphic-value-cell
-          (globals-monomorphic-values globals))
-    (insert-into-existing-monomorphizations-map globals poly-name mono-type mono-name)
+          (lexenv-monomorphic-values lexenv))
+    (insert-into-existing-monomorphizations-map lexenv poly-name mono-type mono-name)
     mono-name))
 
-(defgeneric monomorphize (expr globals)
+(defgeneric monomorphize (expr lexenv)
   (:documentation "returns a new `TYPED-IR1:EXPR' that is like EXPR except references to polymorphic values are replaced with monomorphic versions."))
 
-(defmethod monomorphize ((var variable) globals)
+(defmethod monomorphize ((var variable) lexenv)
   (make-instance 'variable
                  :type (expr-type var)
-                 :name (or (find-existing-monomorphization globals
+                 :name (or (find-existing-monomorphization lexenv
                                                            (variable-name var)
                                                            (expr-type var))
-                           (add-new-monomorphization globals
+                           (add-new-monomorphization lexenv
                                                      (variable-name var)
                                                      (expr-type var)))))
 
-(defmethod monomorphize ((quote quote) globals)
-  (declare (ignorable globals))
+(defmethod monomorphize ((quote quote) lexenv)
+  (declare (ignorable lexenv))
   quote)
 
 (defmacro define-monomorphize (class &body body)
@@ -100,7 +100,7 @@ CLASS should be a symbol which names a class.
 
 within BODY, the symbol CLASS is bound to the instance being
 monomorphized, and `RECURSE' is bound to a function of one argument
-which calls `MONOMORPHIZE' on its argument with the same `GLOBALS'.
+which calls `MONOMORPHIZE' on its argument with the same `LEXENV'.
 
 for example:
 
@@ -111,11 +111,11 @@ for example:
 
 defines a method for the class `FUNCALL' which recurses on its slots
 `FUNCTION' and `ARG', but passes its slot `TYPE' unchanged."
-  (with-gensyms (thing globals)
-    `(defmethod monomorphize ((,class ,class) ,globals)
+  (with-gensyms (thing lexenv)
+    `(defmethod monomorphize ((,class ,class) ,lexenv)
        ,(format nil "`MONOMOPHIZE' method for ~s defined by `DEFINE-MONOMORPHIZE'" class)
        (flet ((recurse (,thing)
-                (monomorphize ,thing ,globals)))
+                (monomorphize ,thing ,lexenv)))
          ,@body))))
 
 (define-monomorphize funcall
@@ -160,10 +160,10 @@ defines a method for the class `FUNCALL' which recurses on its slots
                  :return-value (recurse (prog2-return-value prog2))))
 
 (defun monomorphize-program (program)
-  "returns (`VALUES' ENTRY GLOBALS)
+  "returns (`VALUES' ENTRY LEXENV)
 
 where ENTRY is a `TYPED-IR1:EXPR' and
-GLOBALS is a `GLOBALS' with all its fields populated"
-  (multiple-value-bind (globals entry) (collect-polymorphic-globals program)
-    (cl:let ((monomorphic (monomorphize entry globals)))
-      (values monomorphic globals))))
+LEXENV is a `LEXENV' with all its fields populated"
+  (multiple-value-bind (lexenv entry) (collect-polymorphic-values program)
+    (cl:let ((monomorphic (monomorphize entry lexenv)))
+      (values monomorphic lexenv))))
