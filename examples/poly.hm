@@ -3,4 +3,5 @@
 (def func (lambda (x) x))
 (let ()
   (func 1)
+  (func 2)
   (func true))

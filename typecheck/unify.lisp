@@ -52,3 +52,9 @@
                            (constraint-acons (->-output lhs)
                                              (->-output rhs)
                                              ()))))
+
+(defmethod unify ((lhs type-primitive) (rhs type-primitive))
+  (unless (eq (type-primitive-name lhs) (type-primitive-name rhs))
+    (error "cannot unify type-primitives ~s with ~s"
+           (type-primitive-name lhs)
+           (type-primitive-name rhs))))
