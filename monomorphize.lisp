@@ -42,18 +42,15 @@
   (hash (type-variable-name obj)))
 
 (gefjon-utils:defclass lexenv
-    ((polymorphic-values (hash-map-of symbol expr))
-     (monomorphic-values (hash-map-of symbol expr))
-     (existing-monomorphizations (hash-map-of symbol (hash-map-of type symbol)))
-     (parent (or lexenv null)))
+  ((polymorphic-values (hash-map-of symbol expr)
+                       :initform (make-hash-map :test #'eq))
+   (monomorphic-values (association-list symbol expr)
+                       :initform nil)
+   (existing-monomorphizations (hash-map-of symbol (hash-map-of type symbol))
+                               :initform (make-hash-map :test #'eq))
+   (parent (or lexenv null)
+           :initform nil))
   :superclasses (gefjon-utils:print-all-slots-mixin))
-
-(defun make-empty-lexenv ()
-  (make-instance 'lexenv
-                 :polymorphic-values (make-hash-map :test #'eq)
-                 :monomorphic-values (make-hash-map :test #'eq)
-                 :existing-monomorphizations (make-hash-map :test #'eq)
-                 :parent nil))
 
 (defun push-poly-obj (lexenv let)
   (setf (get (let-binding let)
@@ -61,23 +58,14 @@
         (let-initform let))
   (values))
 
-(defun collect-polymorphic-values (program)
-  "returns (`VALUES' LEXENV ENTRY)
-
-where LEXENV is a `LEXENV' object whose `POLYMORPHIC' records have been populated, and
-ENTRY is an `EXPR' other than a `LET' where PROGRAM will begin execution"
-  (iter
-    (with lexenv = (make-empty-lexenv))
+(defun collect-polymorphic-values (program lexenv)
+  "returns the body of PROGRAM, mutating LEXENV along the way."
+  (iter    
     (with top-level-expr = program)
     (unless (typep top-level-expr 'let)
-      (return (values lexenv top-level-expr)))
+      (return top-level-expr))
     (push-poly-obj lexenv top-level-expr)
     (setf top-level-expr (let-body top-level-expr))))
-
-(defun find-poly-obj-or-error (lexenv poly-name)
-  (multiple-value-bind (value present-p) (get poly-name (lexenv-polymorphic-values lexenv))
-    (cl:if present-p value
-           (error "polymorphic value ~s not found" poly-name))))
 
 (defun existing-monomorphization-second-level-map (lexenv poly-name)
   (multiple-value-bind (map foundp) (get poly-name (lexenv-existing-monomorphizations lexenv))
@@ -88,23 +76,41 @@ ENTRY is an `EXPR' other than a `LET' where PROGRAM will begin execution"
     map))
 
 (defun find-existing-monomorphization (lexenv poly-name mono-type)
-  (get mono-type (existing-monomorphization-second-level-map lexenv poly-name)))
+  (multiple-value-bind (val present-p) (get mono-type (existing-monomorphization-second-level-map lexenv poly-name))
+    (cond (present-p val)
+          ((lexenv-parent lexenv) (find-existing-monomorphization (lexenv-parent lexenv)
+                                                                  poly-name
+                                                                  mono-type))
+          (:otherwise nil))))
 
 (defun insert-into-existing-monomorphizations-map (lexenv poly-name mono-type mono-name)
   (setf (get mono-type (existing-monomorphization-second-level-map lexenv poly-name))
         mono-name)
   (values))
 
-(defun add-new-monomorphization (lexenv poly-name mono-type)
-  (let* ((poly-expr (find-poly-obj-or-error lexenv poly-name))
-         (poly-type (expr-type poly-expr))
+(defun monomorphize-poly-expr (lexenv poly-expr poly-name mono-type)
+  (let* ((poly-type (expr-type poly-expr))
          (substitution (unify mono-type poly-type))
          (mono-expr (apply-substitution substitution poly-expr))
          (mono-name (make-gensym poly-name)))
-    (setf (get mono-name (lexenv-monomorphic-values lexenv))
-          mono-expr)
+    (push (cons mono-name mono-expr) (lexenv-monomorphic-values lexenv))
     (insert-into-existing-monomorphizations-map lexenv poly-name mono-type mono-name)
     mono-name))
+
+(defun add-new-monomorphization (lexenv poly-name mono-type)
+  (multiple-value-bind (poly-expr present-p) (get poly-name (lexenv-polymorphic-values lexenv))
+    (cond (present-p (monomorphize-poly-expr lexenv
+                                             poly-expr
+                                             poly-name
+                                             mono-type))
+          ((lexenv-parent lexenv) (add-new-monomorphization (lexenv-parent lexenv)
+                                                            poly-name
+                                                            mono-type))
+          (:otherwise (error "unbound poly-name ~a" poly-name)))))
+
+(defun monomorphize-symbol (symbol target-type lexenv)
+  (or (find-existing-monomorphization lexenv symbol target-type)
+      (add-new-monomorphization lexenv symbol target-type)))
 
 (defgeneric monomorphize (expr lexenv)
   (:documentation "returns a new `TYPED-IR1:EXPR' that is like EXPR except references to polymorphic values are replaced with monomorphic versions."))
@@ -112,12 +118,9 @@ ENTRY is an `EXPR' other than a `LET' where PROGRAM will begin execution"
 (defmethod monomorphize ((var variable) lexenv)
   (make-instance 'variable
                  :type (expr-type var)
-                 :name (or (print (find-existing-monomorphization lexenv
-                                                                  (variable-name var)
-                                                                  (expr-type var)))
-                           (print (add-new-monomorphization lexenv
-                                                            (variable-name var)
-                                                            (expr-type var))))))
+                 :name (monomorphize-symbol (variable-name var)
+                                            (expr-type var)
+                                            lexenv)))
 
 (defmethod monomorphize ((quote quote) lexenv)
   (declare (ignorable lexenv))
@@ -161,13 +164,21 @@ defines a method for the class `FUNCALL' which recurses on its slots
                  :arg (recurse (lambda-body lambda))))
 
 ;; todo: properly handle polymorphic non-top-level lets
-(define-monomorphize let
-  (make-instance 'let
-                 :type (expr-type let)
-                 :binding (let-binding let)
-                 :scheme (let-scheme let)
-                 :initform (recurse (let-initform let))
-                 :body (recurse (let-body let))))
+(defmethod monomorphize ((let let) enclosing-env)
+  (let* ((local-env (make-instance 'lexenv
+                                   :parent enclosing-env))
+         (poly-body (collect-polymorphic-values let local-env))
+         (mono-body (monomorphize poly-body local-env)))
+    (iter
+      (with body = mono-body)
+      (for (binding . initform) in (lexenv-monomorphic-values local-env))
+      (setf body (make-instance 'let
+                                :type (expr-type body)
+                                :binding binding
+                                :scheme (expr-type initform)
+                                :initform initform
+                                :body body))
+      (finally (return body)))))
 
 (define-monomorphize if
   (make-instance 'if
@@ -189,11 +200,8 @@ defines a method for the class `FUNCALL' which recurses on its slots
                  :side-effect (recurse (prog2-side-effect prog2))
                  :return-value (recurse (prog2-return-value prog2))))
 
+(declaim (ftype (function (expr) expr)
+                monomorphize-program))
 (defun monomorphize-program (program)
-  "returns (`VALUES' ENTRY LEXENV)
-
-where ENTRY is a `TYPED-IR1:EXPR' and
-LEXENV is a `LEXENV' with all its fields populated"
-  (multiple-value-bind (lexenv entry) (collect-polymorphic-values program)
-    (cl:let ((monomorphic (monomorphize entry lexenv)))
-      (values monomorphic lexenv))))
+  "returns a `TYPED-IR1:EXPR' that is like `PROGRAM', except all polymorphic values are replacecd with equivalent monomorphic values"
+  (monomorphize program (make-instance 'lexenv)))
