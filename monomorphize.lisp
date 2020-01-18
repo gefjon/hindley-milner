@@ -6,30 +6,59 @@
      :iterate
      :trivial-types
      :cl)
+  (:shadowing-import-from :generic-cl
+   :equalp :hash :get :hash-map :make-hash-map)
   (:import-from :hindley-milner/typecheck/unify
    :unify)
-  (:import-from :alexandria
-                :with-gensyms)
+  (:import-from
+   :alexandria
+   :with-gensyms
+   :make-gensym)
   (:import-from :hindley-milner/typecheck/substitute
    :apply-substitution)
   (:export :monomorphize-program))
 (cl:in-package :hindley-milner/monomorphize)
 
+(deftype hash-map-of (&optional key value)
+  (declare (ignore key value))
+  'hash-map)
+
+(defmethod equalp ((lhs ->) (rhs ->))
+  (and (equalp (->-input lhs) (->-input rhs))
+       (equalp (->-output lhs) (->-output rhs))))
+(defmethod hash ((obj ->))
+  (logand (+ (hash (->-input obj))
+             (hash (->-output obj)))
+          most-positive-fixnum))
+
+(defmethod equalp ((lhs type-primitive) (rhs type-primitive))
+  (eq (type-primitive-name lhs) (type-primitive-name rhs)))
+(defmethod hash ((obj type-primitive))
+  (hash (type-primitive-name obj)))
+
+(defmethod equalp ((lhs type-variable) (rhs type-variable))
+  (eq (type-variable-name lhs) (type-variable-name rhs)))
+(defmethod hash ((obj type-variable))
+  (hash (type-variable-name obj)))
+
 (gefjon-utils:defclass lexenv
-  ((polymorphic-values (association-list symbol expr))
-   (monomorphic-values (association-list symbol expr))
-   (existing-monomorphizations (association-list symbol (association-list type symbol)))))
+    ((polymorphic-values (hash-map-of symbol expr))
+     (monomorphic-values (hash-map-of symbol expr))
+     (existing-monomorphizations (hash-map-of symbol (hash-map-of type symbol)))
+     (parent (or lexenv null)))
+  :superclasses (gefjon-utils:print-all-slots-mixin))
 
 (defun make-empty-lexenv ()
   (make-instance 'lexenv
-                 :polymorphic-values ()
-                 :monomorphic-values ()
-                 :existing-monomorphizations ()))
+                 :polymorphic-values (make-hash-map :test #'eq)
+                 :monomorphic-values (make-hash-map :test #'eq)
+                 :existing-monomorphizations (make-hash-map :test #'eq)
+                 :parent nil))
 
 (defun push-poly-obj (lexenv let)
-  (push (cons (let-binding let)
-              (let-initform let))
-        (lexenv-polymorphic-values lexenv))
+  (setf (get (let-binding let)
+                 (lexenv-polymorphic-values lexenv))
+        (let-initform let))
   (values))
 
 (defun collect-polymorphic-values (program)
@@ -46,33 +75,34 @@ ENTRY is an `EXPR' other than a `LET' where PROGRAM will begin execution"
     (setf top-level-expr (let-body top-level-expr))))
 
 (defun find-poly-obj-or-error (lexenv poly-name)
-  (cdr (or (assoc poly-name (lexenv-polymorphic-values lexenv))
+  (multiple-value-bind (value present-p) (get poly-name (lexenv-polymorphic-values lexenv))
+    (cl:if present-p value
            (error "polymorphic value ~s not found" poly-name))))
 
-(defun find-or-push-existing-monomorph-poly-cell (lexenv poly-name)
-  (or (assoc poly-name (lexenv-existing-monomorphizations lexenv))
-      (first (push (cons poly-name nil) (lexenv-existing-monomorphizations lexenv)))))
-
-(defun insert-into-existing-monomorphizations-map (lexenv poly-name mono-type mono-name)
-  (let* ((cell-for-this-poly (find-or-push-existing-monomorph-poly-cell lexenv poly-name))
-         (cell-for-this-mono (cons mono-type mono-name)))
-    (push cell-for-this-mono (cdr cell-for-this-poly)))
-  (values))
+(defun existing-monomorphization-second-level-map (lexenv poly-name)
+  (multiple-value-bind (map foundp) (get poly-name (lexenv-existing-monomorphizations lexenv))
+    (unless foundp
+      (setf map (make-hash-map :test #'equalp))
+      (setf (get poly-name (lexenv-existing-monomorphizations lexenv))
+            map))
+    map))
 
 (defun find-existing-monomorphization (lexenv poly-name mono-type)
-  (cdr (assoc mono-type
-              (cdr (assoc poly-name (lexenv-existing-monomorphizations lexenv)))
-              :test #'equalp)))
+  (get mono-type (existing-monomorphization-second-level-map lexenv poly-name)))
+
+(defun insert-into-existing-monomorphizations-map (lexenv poly-name mono-type mono-name)
+  (setf (get mono-type (existing-monomorphization-second-level-map lexenv poly-name))
+        mono-name)
+  (values))
 
 (defun add-new-monomorphization (lexenv poly-name mono-type)
   (let* ((poly-expr (find-poly-obj-or-error lexenv poly-name))
          (poly-type (expr-type poly-expr))
          (substitution (unify mono-type poly-type))
          (mono-expr (apply-substitution substitution poly-expr))
-         (mono-name (gensym (format nil "~s-~a" poly-name mono-type)))
-         (monomorphic-value-cell (cons mono-name mono-expr)))
-    (push monomorphic-value-cell
-          (lexenv-monomorphic-values lexenv))
+         (mono-name (make-gensym poly-name)))
+    (setf (get mono-name (lexenv-monomorphic-values lexenv))
+          mono-expr)
     (insert-into-existing-monomorphizations-map lexenv poly-name mono-type mono-name)
     mono-name))
 
@@ -82,12 +112,12 @@ ENTRY is an `EXPR' other than a `LET' where PROGRAM will begin execution"
 (defmethod monomorphize ((var variable) lexenv)
   (make-instance 'variable
                  :type (expr-type var)
-                 :name (or (find-existing-monomorphization lexenv
-                                                           (variable-name var)
-                                                           (expr-type var))
-                           (add-new-monomorphization lexenv
-                                                     (variable-name var)
-                                                     (expr-type var)))))
+                 :name (or (print (find-existing-monomorphization lexenv
+                                                                  (variable-name var)
+                                                                  (expr-type var)))
+                           (print (add-new-monomorphization lexenv
+                                                            (variable-name var)
+                                                            (expr-type var))))))
 
 (defmethod monomorphize ((quote quote) lexenv)
   (declare (ignorable lexenv))

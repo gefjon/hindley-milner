@@ -1,5 +1,5 @@
 (uiop:define-package :hindley-milner/defenum
-  (:mix :hindley-milner/subst :cl)
+    (:use :cl)
   (:nicknames :enum)
   (:export :defenum))
 (cl:in-package :hindley-milner/defenum)
