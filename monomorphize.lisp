@@ -27,9 +27,8 @@
   (and (equalp (->-input lhs) (->-input rhs))
        (equalp (->-output lhs) (->-output rhs))))
 (defmethod hash ((obj ->))
-  (logand (+ (hash (->-input obj))
-             (hash (->-output obj)))
-          most-positive-fixnum))
+  (logxor (hash (->-input obj))
+          (hash (->-output obj))))
 
 (defmethod equalp ((lhs type-primitive) (rhs type-primitive))
   (eq (type-primitive-name lhs) (type-primitive-name rhs)))

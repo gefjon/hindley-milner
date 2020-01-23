@@ -10,8 +10,9 @@
              `(gefjon-utils:defclass ,variant-name
                   ,unique-slots
                 :superclasses (,type-name)))))
-    `(prog1
+    `(progn
          (gefjon-utils:defclass ,type-name ,common-slots
            :superclasses (gefjon-utils:print-all-slots-mixin))
-       ,@(mapcar #'define-variant variants))))
+         ,@(mapcar #'define-variant variants)
+         ',type-name)))
 

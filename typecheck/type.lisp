@@ -2,7 +2,6 @@
     (:nicknames :type)
   (:mix :hindley-milner/subst :hindley-milner/defenum :trivial-types :cl)
   (:import-from :gefjon-utils)
-  (:import-from :hindley-milner/ir1)
   (:shadow :type)
   (:export
 

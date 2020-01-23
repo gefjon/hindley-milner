@@ -13,7 +13,7 @@
    :quote :quote-it
    :funcall :funcall-function :funcall-arg
    :lambda  :lambda-binding :lambda-body
-   :let :let-binding :let-scheme :let-scheme-boundp :let-internal-env :let-internal-env-boundp :let-initform :let-body
+   :let :let-binding :let-scheme :let-initform :let-body
    :if :if-predicate :if-then-case :if-else-case
    :binop :binop-op :binop-lhs :binop-rhs
    :prog2 :prog2-side-effect :prog2-return-value
