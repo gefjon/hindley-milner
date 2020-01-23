@@ -2,7 +2,7 @@
     (:nicknames :monomorphize)
     (:mix
      :hindley-milner/typecheck/type
-     :hindley-milner/typecheck/typed-ir1
+     :hindley-milner/ir1
      :iterate
      :trivial-types
      :cl)
@@ -112,7 +112,7 @@
       (add-new-monomorphization lexenv symbol target-type)))
 
 (defgeneric monomorphize (expr lexenv)
-  (:documentation "returns a new `TYPED-IR1:EXPR' that is like EXPR except references to polymorphic values are replaced with monomorphic versions."))
+  (:documentation "returns a new `IR1:EXPR' that is like EXPR except references to polymorphic values are replaced with monomorphic versions."))
 
 (defmethod monomorphize ((var variable) lexenv)
   (make-instance 'variable
@@ -202,5 +202,5 @@ defines a method for the class `FUNCALL' which recurses on its slots
 (declaim (ftype (function (expr) expr)
                 monomorphize-program))
 (defun monomorphize-program (program)
-  "returns a `TYPED-IR1:EXPR' that is like `PROGRAM', except all polymorphic values are replacecd with equivalent monomorphic values"
+  "returns a `IR1:EXPR' that is like `PROGRAM', except all polymorphic values are replacecd with equivalent monomorphic values"
   (monomorphize program (make-instance 'lexenv)))

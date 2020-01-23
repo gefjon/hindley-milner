@@ -4,7 +4,6 @@
    :hindley-milner/typecheck/substitute
         :trivial-types :iterate :cl)
   (:import-from :hindley-milner/ir1)
-  (:import-from :hindley-milner/typecheck/typed-ir1)
   (:export :infer :constraint :constraints :constraint-lhs :constraint-rhs))
 (cl:in-package :hindley-milner/typecheck/infer)
 
@@ -44,7 +43,7 @@ CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to
 (defmethod infer ((expr ir1:variable) type-env)
   (let* ((name (ir1:variable-name expr))
          (type (instantiate (type-env-lookup type-env name)))
-         (new-node (make-instance 'typed-ir1:variable
+         (new-node (make-instance 'ir1:variable
                                   :type type
                                   :name name)))
     (values new-node type ())))
@@ -60,7 +59,7 @@ CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to
                                         :output return-type))
              (funcall-constraints (acons arrow-type func-type ()))
              (all-constraints (append funcall-constraints func-constraints arg-constraints))
-             (new-node (make-instance 'typed-ir1:funcall
+             (new-node (make-instance 'ir1:funcall
                                       :type return-type
                                       :function func-node
                                       :arg arg-node)))
@@ -80,7 +79,7 @@ CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to
       (let* ((arrow-type (make-instance '->
                                        :input arg-type
                                        :output return-type))
-             (new-node (make-instance 'typed-ir1:lambda
+             (new-node (make-instance 'ir1:lambda
                                       :type arrow-type
                                       :binding binding
                                       :body body)))
@@ -96,7 +95,7 @@ CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to
            (local-env (acons binding value-scheme type-env)))
       (multiple-value-bind (body return-type body-constraints)
           (infer (ir1:let-body expr) local-env)
-        (values (make-instance 'typed-ir1:let
+        (values (make-instance 'ir1:let
                                :type return-type
                                :binding binding
                                :scheme value-scheme
@@ -112,7 +111,7 @@ CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to
         (infer (ir1:if-then-case expr) type-env)
       (multiple-value-bind (else-expr else-type else-constraints)
           (infer (ir1:if-else-case expr) type-env)
-        (let* ((new-node (make-instance 'typed-ir1:if
+        (let* ((new-node (make-instance 'ir1:if
                                         :type then-type
                                         :predicate pred-expr
                                         :then-case then-expr
@@ -131,7 +130,7 @@ CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to
     (declare (ignore side-effect-type))
     (multiple-value-bind (return-expr return-type return-constraints)
         (infer (ir1:prog2-return-value expr) type-env)
-      (values (make-instance 'typed-ir1:prog2
+      (values (make-instance 'ir1:prog2
                              :type return-type
                              :side-effect side-effect-expr
                              :return-value return-expr)
@@ -143,7 +142,7 @@ CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to
   (let ((type (etypecase (ir1:quote-it expr)
                 (boolean type:*boolean*)
                 (fixnum type:*fixnum*))))
-    (values (make-instance 'typed-ir1:quote
+    (values (make-instance 'ir1:quote
                            :type type
                            :it (ir1:quote-it expr))
             type

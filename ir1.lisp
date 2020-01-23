@@ -1,14 +1,17 @@
 (uiop:define-package :hindley-milner/ir1
     (:mix :hindley-milner/defenum :trivial-types :cl)
   (:nicknames :ir1)
+  (:import-from :hindley-milner/subst) ;; for `RECURSE-ON-SLOTS'
   (:import-from :hindley-milner/syntax
                 :literal :clause)
   (:shadow :funcall :lambda :let :quote :if :binop :prog2 :variable)
+  (:shadowing-import-from :hindley-milner/typecheck/type
+   :type :type-scheme)
   (:export
 
    :typed-node :typed-node-type :type-already-computed-p
 
-   :expr
+   :expr :expr-type
    :variable :variable-name
    :quote :quote-it
    :funcall :funcall-function :funcall-arg
@@ -31,7 +34,7 @@
 ;; 
 ;; - literals are tagged with a quote
 
-(defenum expr ()
+(defenum expr ((type type :may-init-unbound t))
     ((variable ((name symbol)))
      (quote ((it syntax:literal)))
      (funcall ((function expr)
@@ -39,6 +42,7 @@
      (lambda ((binding symbol)
               (body expr)))
      (let ((binding symbol)
+           (scheme (or type type-scheme) :may-init-unbound t)
            (initform expr)
            (body expr)))
      (if ((predicate expr)
@@ -49,6 +53,23 @@
              (rhs expr)))
      (prog2 ((side-effect expr)
              (return-value expr)))))
+
+(subst:recurse-on-slots expr
+  type)
+;; this method is superseded by those below, so each
+;; `RECURSE-ON-SLOTS' below must also list `TYPE'
+(subst:recurse-on-slots funcall
+  type function arg)
+(subst:recurse-on-slots lambda
+  type binding body)
+(subst:recurse-on-slots let
+  type scheme initform body)
+(subst:recurse-on-slots if
+  type predicate then-case else-case)
+(subst:recurse-on-slots binop
+  type lhs rhs)
+(subst:recurse-on-slots prog2
+  type side-effect return-value)
 
 (defgeneric parse (clause)
   (:documentation "transform a `SYNTAX:CLAUSE' into an `IR1:CLAUSE'"))

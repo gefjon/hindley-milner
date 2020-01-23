@@ -8,10 +8,10 @@
   (:export :infer-program-types :*top-level-type-env*))
 (cl:in-package :hindley-milner/typecheck)
 
-(defun infer-program-types (ir1-program)
-  "transforms an `IR1:EXPR' into a `TYPED-IR1:EXPR'"
+(defun infer-program-types (untyped-program)
+  "returns a new `IR1:EXPR' that is like UNTYPED-PROGRAM, except its `TYPE' and `SCHEME' slots are populated with inferred types"
   (multiple-value-bind (inferred-program result-type constraints)
-      (infer:infer ir1-program ())
+      (infer:infer untyped-program ())
     (declare (ignore result-type))
     (let ((substitution (unify:solve constraints)))
       (apply-substitution substitution inferred-program))))
