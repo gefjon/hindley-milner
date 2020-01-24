@@ -1,6 +1,6 @@
 (uiop:define-package :hindley-milner/typecheck/unify
     (:nicknames :unify)
-  (:mix :hindley-milner/typecheck/type :iterate :cl)
+  (:mix :hindley-milner/ir1/type :iterate :cl)
   (:import-from :hindley-milner/typecheck/infer
    :constraints :constraint :constraint-lhs :constraint-rhs :constraint-acons)
   (:import-from :hindley-milner/typecheck/substitute

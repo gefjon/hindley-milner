@@ -1,7 +1,7 @@
 (uiop:define-package :hindley-milner/monomorphize
     (:nicknames :monomorphize)
-    (:mix
-     :hindley-milner/typecheck/type
+  (:mix
+     ;; :hindley-milner/ir1/type
      :hindley-milner/ir1
      :iterate
      :trivial-types

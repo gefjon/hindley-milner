@@ -1,8 +1,11 @@
 (uiop:define-package :hindley-milner/typecheck/infer
     (:nicknames :infer)
-  (:mix :hindley-milner/typecheck/type
+  (:mix
+   :hindley-milner/ir1
    :hindley-milner/typecheck/substitute
-        :trivial-types :iterate :cl)
+   :trivial-types
+   :iterate
+   :cl)
   (:import-from :hindley-milner/ir1)
   (:export :infer :constraint :constraints :constraint-lhs :constraint-rhs))
 (cl:in-package :hindley-milner/typecheck/infer)
@@ -40,26 +43,26 @@ TYPED-IR1 is a new node which is like EXPR but with type annotations,
 TYPE is the inferred type of EXPR, and
 CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to solve"))
 
-(defmethod infer ((expr ir1:variable) type-env)
-  (let* ((name (ir1:variable-name expr))
+(defmethod infer ((expr variable) type-env)
+  (let* ((name (variable-name expr))
          (type (instantiate (type-env-lookup type-env name)))
-         (new-node (make-instance 'ir1:variable
+         (new-node (make-instance 'variable
                                   :type type
                                   :name name)))
     (values new-node type ())))
 
-(defmethod infer ((expr ir1:funcall) type-env)
+(defmethod infer ((expr funcall) type-env)
   (multiple-value-bind (func-node func-type func-constraints)
-      (infer (ir1:funcall-function expr) type-env)
+      (infer (funcall-function expr) type-env)
     (multiple-value-bind (arg-node arg-type arg-constraints)
-        (infer (ir1:funcall-arg expr) type-env)
+        (infer (funcall-arg expr) type-env)
       (let* ((return-type (new-type-variable))
              (arrow-type (make-instance '->
                                         :input arg-type
                                         :output return-type))
              (funcall-constraints (acons arrow-type func-type ()))
              (all-constraints (append funcall-constraints func-constraints arg-constraints))
-             (new-node (make-instance 'ir1:funcall
+             (new-node (make-instance 'funcall
                                       :type return-type
                                       :function func-node
                                       :arg arg-node)))
@@ -67,19 +70,19 @@ CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to
                 return-type
                 all-constraints)))))
 
-(defmethod infer ((expr ir1:lambda) type-env)
-  (let* ((binding (ir1:lambda-binding expr))
+(defmethod infer ((expr lambda) type-env)
+  (let* ((binding (lambda-binding expr))
          (arg-type (new-type-variable binding))
          (scheme (make-instance 'type-scheme
                                 :bindings ()
                                 :body arg-type))
          (function-env (acons binding scheme type-env)))
     (multiple-value-bind (body return-type constraints)
-        (infer (ir1:lambda-body expr) function-env)
+        (infer (lambda-body expr) function-env)
       (let* ((arrow-type (make-instance '->
                                        :input arg-type
                                        :output return-type))
-             (new-node (make-instance 'ir1:lambda
+             (new-node (make-instance 'lambda
                                       :type arrow-type
                                       :binding binding
                                       :body body)))
@@ -87,15 +90,15 @@ CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to
                 arrow-type
                 constraints)))))
 
-(defmethod infer ((expr ir1:let) type-env)
+(defmethod infer ((expr let) type-env)
   (multiple-value-bind (init-expr value-type value-constraints)
-      (infer (ir1:let-initform expr) type-env)
+      (infer (let-initform expr) type-env)
     (let* ((value-scheme (generalize value-type type-env))
-           (binding (ir1:let-binding expr))
+           (binding (let-binding expr))
            (local-env (acons binding value-scheme type-env)))
       (multiple-value-bind (body return-type body-constraints)
-          (infer (ir1:let-body expr) local-env)
-        (values (make-instance 'ir1:let
+          (infer (let-body expr) local-env)
+        (values (make-instance 'let
                                :type return-type
                                :binding binding
                                :scheme value-scheme
@@ -104,19 +107,19 @@ CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to
                 return-type
                 (append value-constraints body-constraints))))))
 
-(defmethod infer ((expr ir1:if) type-env)
+(defmethod infer ((expr if) type-env)
   (multiple-value-bind (pred-expr pred-type pred-constraints)
-      (infer (ir1:if-predicate expr) type-env)
+      (infer (if-predicate expr) type-env)
     (multiple-value-bind (then-expr then-type then-constraints)
-        (infer (ir1:if-then-case expr) type-env)
+        (infer (if-then-case expr) type-env)
       (multiple-value-bind (else-expr else-type else-constraints)
-          (infer (ir1:if-else-case expr) type-env)
-        (let* ((new-node (make-instance 'ir1:if
+          (infer (if-else-case expr) type-env)
+        (let* ((new-node (make-instance 'if
                                         :type then-type
                                         :predicate pred-expr
                                         :then-case then-expr
                                         :else-case else-expr))
-               (if-constraints (acons pred-type type:*boolean*
+               (if-constraints (acons pred-type *boolean*
                                       (acons then-type else-type ())))
                (all-constraints
                  (append if-constraints pred-constraints then-constraints else-constraints)))
@@ -124,26 +127,26 @@ CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to
                   then-type
                   all-constraints))))))
 
-(defmethod infer ((expr ir1:prog2) type-env)
+(defmethod infer ((expr prog2) type-env)
   (multiple-value-bind (side-effect-expr side-effect-type side-effect-constraints)
-      (infer (ir1:prog2-side-effect expr) type-env)
+      (infer (prog2-side-effect expr) type-env)
     (declare (ignore side-effect-type))
     (multiple-value-bind (return-expr return-type return-constraints)
-        (infer (ir1:prog2-return-value expr) type-env)
-      (values (make-instance 'ir1:prog2
+        (infer (prog2-return-value expr) type-env)
+      (values (make-instance 'prog2
                              :type return-type
                              :side-effect side-effect-expr
                              :return-value return-expr)
               return-type
               (append side-effect-constraints return-constraints)))))
 
-(defmethod infer ((expr ir1:quote) type-env)
+(defmethod infer ((expr quote) type-env)
   (declare (ignorable type-env))
-  (let ((type (etypecase (ir1:quote-it expr)
-                (boolean type:*boolean*)
-                (fixnum type:*fixnum*))))
-    (values (make-instance 'ir1:quote
+  (let* ((type (etypecase (quote-it expr)
+                (boolean *boolean*)
+                (fixnum *fixnum*))))
+    (values (make-instance 'quote
                            :type type
-                           :it (ir1:quote-it expr))
+                           :it (quote-it expr))
             type
             ())))

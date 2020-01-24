@@ -1,6 +1,5 @@
-(uiop:define-package :hindley-milner/typecheck/type
-    (:nicknames :type)
-  (:mix :hindley-milner/subst :hindley-milner/defenum :trivial-types :cl)
+(uiop:define-package :hindley-milner/ir1/type
+    (:mix :hindley-milner/subst :hindley-milner/defenum :trivial-types :cl)
   (:import-from :gefjon-utils)
   (:shadow :type)
   (:export
@@ -15,7 +14,7 @@
    :type-scheme :type-scheme-bindings :type-scheme-body
 
    :type-env :type-env-lookup))
-(cl:in-package :hindley-milner/typecheck/type)
+(cl:in-package :hindley-milner/ir1/type)
 
 (defenum type ()
   ((type-variable ((name symbol)))

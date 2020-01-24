@@ -1,16 +1,12 @@
 (uiop:define-package :hindley-milner/ir1
-    (:mix :hindley-milner/defenum :trivial-types :cl)
+    (:mix :hindley-milner/ir1/type :hindley-milner/defenum :trivial-types :cl)
   (:nicknames :ir1)
   (:import-from :hindley-milner/subst) ;; for `RECURSE-ON-SLOTS'
   (:import-from :hindley-milner/syntax
                 :literal :clause)
   (:shadow :funcall :lambda :let :quote :if :binop :prog2 :variable)
-  (:shadowing-import-from :hindley-milner/typecheck/type
-   :type :type-scheme)
+  (:reexport :hindley-milner/ir1/type)
   (:export
-
-   :typed-node :typed-node-type :type-already-computed-p
-
    :expr :expr-type
    :variable :variable-name
    :quote :quote-it

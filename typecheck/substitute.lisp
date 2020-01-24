@@ -1,6 +1,6 @@
 (uiop:define-package :hindley-milner/typecheck/substitute
     (:nicknames :substitute)
-  (:mix :hindley-milner/subst :hindley-milner/typecheck/type :trivial-types :cl :iterate)
+  (:mix :hindley-milner/subst :hindley-milner/ir1/type :trivial-types :cl :iterate)
   (:import-from :alexandria)
   (:export :substitution :apply-substitution :instantiate :generalize))
 (cl:in-package :hindley-milner/typecheck/substitute)
