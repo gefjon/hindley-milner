@@ -42,7 +42,8 @@
 
 (gefjon-utils:defclass type-scheme
   ((bindings (proper-list type-variable))
-   (body type)))
+   (body type))
+  :superclasses (gefjon-utils:print-all-slots-mixin))
 
 (subst:recurse-on-slots type-scheme
   bindings body)
