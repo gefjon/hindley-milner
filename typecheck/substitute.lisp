@@ -14,7 +14,7 @@
     (setf tree (subst new old tree))
     (finally (return tree))))
 
-(declaim (ftype (function (type-scheme) type)
+(declaim (ftype (function (type-scheme) (values type &optional))
                 instantiate))
 (defun instantiate (type-scheme)
   (flet ((make-substitution-cell (type-var)
@@ -48,7 +48,7 @@
   (iter (for (key . value) in type-env)
     (unioning (free-type-variables value))))
 
-(declaim (ftype (function (type type-env) type-scheme)
+(declaim (ftype (function (type type-env) (values type-scheme &optional))
                 generalize))
 (defun generalize (type type-env)
   (make-instance 'type-scheme

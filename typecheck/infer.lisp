@@ -90,15 +90,15 @@ CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to
                 arrow-type
                 constraints)))))
 
-(defmethod infer ((expr let) type-env)
+(defmethod infer ((expr poly-let) type-env)
   (multiple-value-bind (init-expr value-type value-constraints)
-      (infer (let-initform expr) type-env)
+      (infer (poly-let-initform expr) type-env)
     (let* ((value-scheme (generalize value-type type-env))
-           (binding (let-binding expr))
+           (binding (poly-let-binding expr))
            (local-env (acons binding value-scheme type-env)))
       (multiple-value-bind (body return-type body-constraints)
-          (infer (let-body expr) local-env)
-        (values (make-instance 'let
+          (infer (poly-let-body expr) local-env)
+        (values (make-instance 'poly-let
                                :type return-type
                                :binding binding
                                :scheme value-scheme
@@ -142,7 +142,7 @@ CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to
 
 (defmethod infer ((expr quote) type-env)
   (declare (ignorable type-env))
-  (let* ((type (etypecase (quote-it expr)
+  (let ((type (etypecase (quote-it expr)
                 (boolean *boolean*)
                 (fixnum *fixnum*))))
     (values (make-instance 'quote

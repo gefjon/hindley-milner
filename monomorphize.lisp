@@ -1,7 +1,7 @@
 (uiop:define-package :hindley-milner/monomorphize
     (:nicknames :monomorphize)
   (:mix
-     ;; :hindley-milner/ir1/type
+     :hindley-milner/defenum
      :hindley-milner/ir1
      :iterate
      :trivial-types
@@ -18,6 +18,12 @@
    :apply-substitution)
   (:export :monomorphize-program))
 (cl:in-package :hindley-milner/monomorphize)
+
+(extend-enum expr
+             ((mono-let ((binding symbol)
+                         (bound-type type)
+                         (initform expr)
+                         (body expr)))))
 
 (deftype hash-map-of (&optional key value)
   (declare (ignore key value))
@@ -52,19 +58,19 @@
   :superclasses (gefjon-utils:print-all-slots-mixin))
 
 (defun push-poly-obj (lexenv let)
-  (setf (get (let-binding let)
+  (setf (get (poly-let-binding let)
                  (lexenv-polymorphic-values lexenv))
-        (let-initform let))
+        (poly-let-initform let))
   (values))
 
 (defun collect-polymorphic-values (program lexenv)
   "returns the body of PROGRAM, mutating LEXENV along the way."
   (iter    
     (with top-level-expr = program)
-    (unless (typep top-level-expr 'let)
+    (unless (typep top-level-expr 'poly-let)
       (return top-level-expr))
     (push-poly-obj lexenv top-level-expr)
-    (setf top-level-expr (let-body top-level-expr))))
+    (setf top-level-expr (poly-let-body top-level-expr))))
 
 (defun existing-monomorphization-second-level-map (lexenv poly-name)
   (multiple-value-bind (map foundp) (get poly-name (lexenv-existing-monomorphizations lexenv))
@@ -90,7 +96,7 @@
 (defun monomorphize-poly-expr (lexenv poly-expr poly-name mono-type)
   (let* ((poly-type (expr-type poly-expr))
          (substitution (unify mono-type poly-type))
-         (mono-expr (apply-substitution substitution poly-expr))
+         (mono-expr (monomorphize (apply-substitution substitution poly-expr) lexenv))
          (mono-name (make-gensym poly-name)))
     (push (cons mono-name mono-expr) (lexenv-monomorphic-values lexenv))
     (insert-into-existing-monomorphizations-map lexenv poly-name mono-type mono-name)
@@ -143,11 +149,13 @@ for example:
 
 defines a method for the class `FUNCALL' which recurses on its slots
 `FUNCTION' and `ARG', but passes its slot `TYPE' unchanged."
-  (with-gensyms (thing lexenv)
+  (multiple-value-bind (class lexenv) (etypecase class
+                                        (symbol (values class (make-gensym 'lexenv)))
+                                        (list (values (first class) (second class))))
     `(defmethod monomorphize ((,class ,class) ,lexenv)
        ,(format nil "`MONOMOPHIZE' method for ~s defined by `DEFINE-MONOMORPHIZE'" class)
-       (flet ((recurse (,thing)
-                (monomorphize ,thing ,lexenv)))
+       (flet ((recurse (thing &optional (,lexenv ,lexenv))
+                (monomorphize thing ,lexenv)))
          ,@body))))
 
 (define-monomorphize funcall
@@ -164,17 +172,19 @@ defines a method for the class `FUNCALL' which recurses on its slots
 
 ;; todo: properly handle polymorphic non-top-level lets
 (defmethod monomorphize ((let let) enclosing-env)
+
+(define-monomorphize (poly-let enclosing-env)
   (let* ((local-env (make-instance 'lexenv
                                    :parent enclosing-env))
-         (poly-body (collect-polymorphic-values let local-env))
-         (mono-body (monomorphize poly-body local-env)))
+         (poly-body (collect-polymorphic-values poly-let local-env))
+         (mono-body (recurse poly-body local-env)))
     (iter
       (with body = mono-body)
       (for (binding . initform) in (lexenv-monomorphic-values local-env))
-      (setf body (make-instance 'let
+      (setf body (make-instance 'mono-let
                                 :type (expr-type body)
                                 :binding binding
-                                :scheme (expr-type initform)
+                                :bound-type (expr-type initform)
                                 :initform initform
                                 :body body))
       (finally (return body)))))
@@ -199,7 +209,7 @@ defines a method for the class `FUNCALL' which recurses on its slots
                  :side-effect (recurse (prog2-side-effect prog2))
                  :return-value (recurse (prog2-return-value prog2))))
 
-(declaim (ftype (function (expr) expr)
+(declaim (ftype (function (expr) (values expr &optional))
                 monomorphize-program))
 (defun monomorphize-program (program)
   "returns a `IR1:EXPR' that is like `PROGRAM', except all polymorphic values are replacecd with equivalent monomorphic values"

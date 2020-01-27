@@ -4,7 +4,7 @@
   (:import-from :hindley-milner/subst) ;; for `RECURSE-ON-SLOTS'
   (:import-from :hindley-milner/syntax
                 :literal :clause)
-  (:shadow :funcall :lambda :let :quote :if :binop :prog2 :variable)
+  (:shadow :funcall :lambda :quote :if :binop :prog2 :variable)
   (:reexport :hindley-milner/ir1/type)
   (:export
    :expr :expr-type
@@ -12,7 +12,7 @@
    :quote :quote-it
    :funcall :funcall-function :funcall-arg
    :lambda  :lambda-binding :lambda-body
-   :let :let-binding :let-scheme :let-initform :let-body
+   :poly-let :poly-let-binding :poly-let-scheme :poly-let-initform :poly-let-body
    :if :if-predicate :if-then-case :if-else-case
    :binop :binop-op :binop-lhs :binop-rhs
    :prog2 :prog2-side-effect :prog2-return-value
@@ -37,10 +37,10 @@
                (arg expr)))
      (lambda ((binding symbol)
               (body expr)))
-     (let ((binding symbol)
-           (scheme (or type type-scheme) :may-init-unbound t)
-           (initform expr)
-           (body expr)))
+     (poly-let ((binding symbol)
+                (scheme type-scheme :may-init-unbound t)
+                (initform expr)
+                (body expr)))
      (if ((predicate expr)
           (then-case expr)
           (else-case expr)))
@@ -58,7 +58,7 @@
   type function arg)
 (subst:recurse-on-slots lambda
   type binding body)
-(subst:recurse-on-slots let
+(subst:recurse-on-slots poly-let
   type scheme initform body)
 (subst:recurse-on-slots if
   type predicate then-case else-case)
@@ -70,7 +70,8 @@
 (defgeneric parse (clause)
   (:documentation "transform a `SYNTAX:CLAUSE' into an `IR1:CLAUSE'"))
 
-(declaim (ftype (function ((proper-list clause)) expr) transform-implicit-progn))
+(declaim (ftype (function ((proper-list clause)) (values expr &optional))
+                transform-implicit-progn))
 (defun transform-implicit-progn (progn)
   (cond ((null progn) (error "empty implicit progn"))
         ;; if there's only one clause, you can skip consing the progn
@@ -109,13 +110,13 @@ TODO: correctly handle the edge case where (lambda-bindings lambda) is nil by tr
             :from-end t
             :initial-value (transform-implicit-progn (syntax:lambda-body lambda)))))
 
-(declaim (ftype (function (syntax:definition expr) expr)
+(declaim (ftype (function (syntax:definition expr) (values expr &optional))
                 let-from-definition))
 (defun let-from-definition (definition body)
-  "build an `IR1:LET' from a `SYNTAX:DEFINITION' and an `IR1:EXPR'
+  "build an `IR1:POLY-LET' from a `SYNTAX:DEFINITION' and an `IR1:EXPR'
 
 passed to `REDUCE' in parsers for `LET' and `SYNTAX:PROGRAM'"
-  (make-instance 'let
+  (make-instance 'poly-let
                  :binding (syntax:definition-binding definition)
                  :initform (parse (syntax:definition-value definition))
                  :body body))

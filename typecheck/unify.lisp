@@ -22,7 +22,7 @@
                  (recursive-solve remaining-constraints partial-solution)))))
     (recursive-solve constraints '())))
 
-(declaim (ftype (function (constraint) substitution)
+(declaim (ftype (function (constraint) (values substitution &optional))
                 solve-constraint))
 (defun solve-constraint (constraint)
   (unify (constraint-lhs constraint) (constraint-rhs constraint)))
@@ -30,7 +30,7 @@
 (defgeneric unify (lhs rhs)
   (:documentation "returns a unifying `SUBSTITUTION' for the constraint that LHS and RHS are the same type"))
 
-(declaim (ftype (function (type-variable type) substitution)
+(declaim (ftype (function (type-variable type) (values substitution &optional))
                 bind))
 (defun bind (tvar type)
   (acons tvar type '()))
