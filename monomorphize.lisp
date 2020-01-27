@@ -164,14 +164,19 @@ defines a method for the class `FUNCALL' which recurses on its slots
                  :function (recurse (funcall-function funcall))
                  :arg (recurse (funcall-arg funcall))))
 
-(define-monomorphize lambda
-  (make-instance 'lambda
-                 :type (expr-type lambda)
-                 :function (lambda-binding lambda)
-                 :arg (recurse (lambda-body lambda))))
-
-;; todo: properly handle polymorphic non-top-level lets
-(defmethod monomorphize ((let let) enclosing-env)
+(define-monomorphize (lambda enclosing-env)
+  (let ((local-env (make-instance 'lexenv
+                                  :parent enclosing-env))
+        (bound-name (lambda-binding lambda))
+        (bound-type (->-input (expr-type lambda))))
+    (insert-into-existing-monomorphizations-map local-env
+                                                (lambda-binding lambda)
+                                                bound-type
+                                                bound-name)
+    (make-instance 'lambda
+                   :type (expr-type lambda)
+                   :binding (lambda-binding lambda)
+                   :body (recurse (lambda-body lambda) local-env))))
 
 (define-monomorphize (poly-let enclosing-env)
   (let* ((local-env (make-instance 'lexenv
