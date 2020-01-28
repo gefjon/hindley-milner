@@ -7,7 +7,7 @@
      :trivial-types
      :cl)
   (:shadowing-import-from :generic-cl
-   :equalp :hash :get :hash-map :make-hash-map)
+   :equalp :hash :get :hash-map :make-hash-map :ensure-get)
   (:import-from :hindley-milner/typecheck/unify
    :unify)
   (:import-from
@@ -73,12 +73,9 @@
     (setf top-level-expr (poly-let-body top-level-expr))))
 
 (defun existing-monomorphization-second-level-map (lexenv poly-name)
-  (multiple-value-bind (map foundp) (get poly-name (lexenv-existing-monomorphizations lexenv))
-    (unless foundp
-      (setf map (make-hash-map :test #'equalp))
-      (setf (get poly-name (lexenv-existing-monomorphizations lexenv))
-            map))
-    map))
+  (ensure-get poly-name
+              (lexenv-existing-monomorphizations lexenv)
+              (make-hash-map :test #'equalp)))
 
 (defun find-existing-monomorphization (lexenv poly-name mono-type)
   (multiple-value-bind (val present-p) (get mono-type (existing-monomorphization-second-level-map lexenv poly-name))
