@@ -18,28 +18,13 @@
    introduce another form, ~delimit~, with the nesting rule that each ~block~
    is nested within a ~delimit~, and each ~return-from~ is nested within a
    ~block~.
-** ir2
-*** fuse curried functions
-*** extract and hoist closure code
-    making closure locals into explicit arguments in the functions
-
-    assign each closure a gensym, and make the closure objects hold a gensym
-    (which identifies the code to run) and a table of local values, which are
-    passed as arguments on invocation.
-*** split bindings into varieties
+** passes
+*** TODO fuse curried functions and create closures
+    this probably involves adding a ~partially-apply~ expr which constructs a
+    closure
+*** TODO hoist expression-level functions
+    close over free variables, put all functions at top level
+*** TODO split bindings into varieties
     top-level ~let~ s turn into either function definitions or global
     variables. expression-level ~let~ s turn into either closures (see above)
     or local variables.
-*** monomorphize
-    collect ~let~-bindings as polymorphic values, which are associated with
-    symbols, rather than indices. whenever expression code accesses a
-    poly-value, monomorphize it & associate it with an index. figure out how to
-    avoid duplicating monomorphizations. by the end of the ir2 transformation,
-    the program text will reference monomorphized values by index; you can then
-    discard the set of polymorphic values.
-** add ir1.5
-   ir1 but typed -- remove types from ir1 and add another intermediate
-   language. instead of annotating ir1 nodes in ~infer~, cons the new ir. this
-   will simplify things overall. also, monomorphize at this stage. or during
-   unification? -- only add one ir total for both, and cons it at the same time
-   you monomorphize.
