@@ -25,7 +25,7 @@ ACCESSOR). the `&KEY' args all have sensible defaults."
 (defmacro extend-enum (enum-name variants)
   "add additional VARIANTS to an already-defined enum ENUM-NAME.
 
-this just defines a bunch of superclasses of ENUM-NAME."
+this just defines subclasses of ENUM-NAME."
   (flet ((define-variant (variant)
            (destructuring-bind (variant-name unique-slots) variant
              `(gefjon-utils:defclass ,variant-name
