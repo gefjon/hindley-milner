@@ -10,7 +10,23 @@
    :make-hash-map :get)
   (:import-from :hindley-milner/syntax :operator)
   (:shadowing-import-from :gefjon-utils
-   :defclass :adjustable-vector :make-adjustable-vector :|:| :-> :optional :print-all-slots-mixin))
+   :defclass :adjustable-vector :make-adjustable-vector :|:| :-> :optional :print-all-slots-mixin)
+  (:export
+   :repr-type
+   :instr
+   :const :const-dest :const-value
+   :mov :mov-dest :mov-src
+   :binop :binop-dest :binop-lhs :binop-rhs :binop-op
+   :label :label-name
+   :goto :goto-target
+   :param :param-src
+   :call :call-dest :call-procedure :call-param-count
+   :ret :ret-val
+   :func-pointer :func-pointer-dest :func-pointer-func
+   :place :place-name :place-type
+   :procedure :procedure-name :procedure-arguments :procedure-locals :procedure-body
+   :program :program-procedures :program-globals :program-entry
+   :transform-program))
 (cl:in-package :hindley-milner/ir2)
 
 (def-c-enum repr-type

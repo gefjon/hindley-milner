@@ -10,6 +10,8 @@
    :parse-program)
   (:import-from :hindley-milner/monomorphize
    :monomorphize-program)
+  (:import-from :hindley-milner/ir2
+                :transform-program)
   (:export :compile))
 (cl:in-package :hindley-milner/compile)
 
@@ -17,5 +19,6 @@
   (let* ((surface-syntax (read-program-from-file filename))
          (ir1 (parse-program surface-syntax))
          (typed (infer-program-types ir1))
-         (monomorphic (monomorphize-program typed)))
-    monomorphic))
+         (monomorphic (monomorphize-program typed))
+         (trigraph (transform-program monomorphic)))
+    trigraph))
