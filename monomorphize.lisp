@@ -1,11 +1,11 @@
 (uiop:define-package :hindley-milner/monomorphize
     (:nicknames :monomorphize)
   (:mix
-     :hindley-milner/defenum
-     :hindley-milner/ir1
-     :iterate
-     :trivial-types
-     :cl)
+   :hindley-milner/prologue
+   :hindley-milner/ir1
+   :iterate
+   :trivial-types
+   :cl)
   (:shadowing-import-from :generic-cl
    :equalp :hash :get :hash-map :make-hash-map :ensure-get)
   (:import-from :hindley-milner/typecheck/unify
@@ -24,10 +24,6 @@
                          (bound-type type)
                          (initform expr)
                          (body expr)))))
-
-(deftype hash-map-of (&optional key value)
-  (declare (ignore key value))
-  'hash-map)
 
 (defmethod equalp ((lhs ->) (rhs ->))
   (and (equalp (->-input lhs) (->-input rhs))

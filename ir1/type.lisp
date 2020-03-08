@@ -1,5 +1,6 @@
 (uiop:define-package :hindley-milner/ir1/type
-    (:mix :hindley-milner/subst :hindley-milner/defenum :trivial-types :cl)
+    (:mix :hindley-milner/subst :hindley-milner/prologue :trivial-types :cl)
+  (:nicknames :ir1-type)
   (:import-from :gefjon-utils)
   (:shadow :type)
   (:export

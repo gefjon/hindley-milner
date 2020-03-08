@@ -1,6 +1,6 @@
 (uiop:define-package :hindley-milner/typecheck
     (:nicknames :typecheck)
-  (:use :cl)
+  (:mix :cl)
   (:import-from :hindley-milner/typecheck/substitute
                 :substitution :apply-substitution)
   (:import-from :hindley-milner/typecheck/infer)

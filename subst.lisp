@@ -1,6 +1,9 @@
 (uiop:define-package :hindley-milner/subst
-    (:use :cl)
+    (:mix :hindley-milner/prologue :cl)
   (:import-from :alexandria :make-gensym)
+  (:import-from :gefjon-utils
+   :symbol-concatenate
+   :shallow-copy)
   (:nicknames :subst)
   (:shadow :subst)
   (:export :subst :define-subst :recurse :recurse-on-slots))
@@ -49,7 +52,7 @@ define recursive methods using `HINDLEY-MILNER/SUBST:DEFINE-SUBST'"
   (let ((slot-gensyms (mapcar #'alexandria:make-gensym slot-names))
         (slot-boundp-gensyms
           (flet ((slot-boundp-gensym (slot-name)
-                   (make-gensym (gefjon-utils:symbol-concatenate slot-name '-boundp))))
+                   (make-gensym (symbol-concatenate slot-name '-boundp))))
             (mapcar #'slot-boundp-gensym slot-names))))
     (flet ((slot-boundp-binding-pair (slot-name slot-boundp-name)
              `(,slot-boundp-name (slot-boundp instance ',slot-name)))
@@ -71,6 +74,6 @@ define recursive methods using `HINDLEY-MILNER/SUBST:DEFINE-SUBST'"
                  ;; if all the slots are `EQ', no new allocation is needed; substitution is a no-op
                  instance
                  ;; if at least one slot is non-`EQ', allocate a new instance
-                 (let ((copy (gefjon-utils:shallow-copy instance)))
+                 (let ((copy (shallow-copy instance)))
                    ,@(mapcar #'setf-slot-form slot-names slot-gensyms slot-boundp-gensyms)
                    copy))))))))

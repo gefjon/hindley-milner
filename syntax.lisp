@@ -1,6 +1,6 @@
 (uiop:define-package :hindley-milner/syntax
   (:nicknames :syntax)
-  (:use :iterate :hindley-milner/defenum :trivial-types :cl :named-readtables)
+  (:mix :iterate :hindley-milner/prologue :trivial-types :cl :named-readtables)
   (:shadow :variable :quote :funcall :lambda :let :quote :if :binop)
   (:import-from :alexandria)
   (:export

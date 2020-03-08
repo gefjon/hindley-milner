@@ -1,8 +1,11 @@
-(uiop:define-package :hindley-milner/defenum
+;;;; stuff that i expect to be useful in most or all files
+
+(uiop:define-package :hindley-milner/prologue
     (:use :trivial-types :cl)
-  (:nicknames :enum)
-  (:export :defenum :extend-enum :def-c-enum))
-(cl:in-package :hindley-milner/defenum)
+  (:nicknames :prologue)
+  (:export :defenum :extend-enum :def-c-enum :hash-map-of)
+  (:import-from :generic-cl :hash-map))
+(cl:in-package :hindley-milner/prologue)
 
 (defmacro defenum (type-name common-slots variants)
   "define an enum or sum type named TYPE-NAME with COMMON-SLOTS.
@@ -59,3 +62,7 @@ supplied value, starting at 0 if no value is supplied."
               (defun ,(gefjon-utils:symbol-concatenate name '-to-int) (,name)
                 (ecase ,name
                   ,@(mapcar #'variant-case-clause variants)))))))
+
+(deftype hash-map-of (&optional key value)
+  (declare (ignore key value))
+  'hash-map)

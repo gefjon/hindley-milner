@@ -1,5 +1,5 @@
 (uiop:define-package :hindley-milner/ir1
-    (:mix :hindley-milner/ir1/type :hindley-milner/defenum :trivial-types :cl)
+    (:mix :hindley-milner/ir1/type :hindley-milner/prologue :trivial-types :cl)
   (:nicknames :ir1)
   (:import-from :hindley-milner/subst) ;; for `RECURSE-ON-SLOTS'
   (:import-from :hindley-milner/syntax
