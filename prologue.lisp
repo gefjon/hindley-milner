@@ -4,6 +4,8 @@
     (:use :trivial-types :cl)
   (:nicknames :prologue)
   (:export :defenum :extend-enum :def-c-enum :hash-map-of)
+  (:shadowing-import-from :gefjon-utils
+   :defclass :symbol-concatenate :print-all-slots-mixin)
   (:import-from :generic-cl :hash-map))
 (cl:in-package :hindley-milner/prologue)
 
