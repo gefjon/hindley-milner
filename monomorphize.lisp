@@ -16,7 +16,9 @@
    :make-gensym)
   (:import-from :hindley-milner/typecheck/substitute
    :apply-substitution)
-  (:export :monomorphize-program))
+  (:export
+   :monomorphize-program
+   :mono-let :mono-let-binding :mono-let-bound-type :mono-let-initform :mono-let-body))
 (cl:in-package :hindley-milner/monomorphize)
 
 (extend-enum expr
