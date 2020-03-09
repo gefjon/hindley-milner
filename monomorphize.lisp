@@ -6,6 +6,8 @@
    :iterate
    :trivial-types
    :cl)
+  (:shadowing-import-from :gefjon-utils
+   :defclass :print-all-slots-mixin)
   (:shadowing-import-from :generic-cl
    :equalp :hash :get :hash-map :make-hash-map :ensure-get)
   (:import-from :hindley-milner/typecheck/unify
@@ -44,7 +46,7 @@
 (defmethod hash ((obj type-variable))
   (hash (type-variable-name obj)))
 
-(gefjon-utils:defclass lexenv
+(defclass lexenv
   ((polymorphic-values (hash-map-of symbol expr)
                        :initform (make-hash-map :test #'eq))
    (monomorphic-values (association-list symbol expr)
@@ -53,7 +55,7 @@
                                :initform (make-hash-map :test #'eq))
    (parent (or lexenv null)
            :initform nil))
-  :superclasses (gefjon-utils:print-all-slots-mixin))
+  :superclasses (print-all-slots-mixin))
 
 (defun push-poly-obj (lexenv let)
   (setf (get (poly-let-binding let)

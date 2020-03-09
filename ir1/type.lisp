@@ -1,7 +1,8 @@
 (uiop:define-package :hindley-milner/ir1/type
     (:mix :hindley-milner/subst :hindley-milner/prologue :trivial-types :cl)
   (:nicknames :ir1-type)
-  (:import-from :gefjon-utils)
+  (:shadowing-import-from :gefjon-utils
+   :defclass :print-all-slots-mixin)
   (:shadow :type)
   (:export
 
@@ -41,10 +42,10 @@
     (make-instance 'type-variable
                    :name (gensym name-string))))
 
-(gefjon-utils:defclass type-scheme
+(defclass type-scheme
   ((bindings (proper-list type-variable))
    (body type))
-  :superclasses (gefjon-utils:print-all-slots-mixin))
+  :superclasses (print-all-slots-mixin))
 
 (subst:recurse-on-slots type-scheme
   bindings body)

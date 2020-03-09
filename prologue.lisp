@@ -23,8 +23,8 @@ list of the form (VARIANT-NAME UNIQUE-SLOTS).
 UNIQUE-SLOTS is a list of slot-descriptors, each of which is a list of
 the form (SLOT-NAME SLOT-TYPE `&KEY' INITFORM MAY-INIT-UNBOUND
 ACCESSOR). the `&KEY' args all have sensible defaults."
-  `(progn (gefjon-utils:defclass ,type-name ,common-slots
-            :superclasses (gefjon-utils:print-all-slots-mixin))
+  `(progn (defclass ,type-name ,common-slots
+            :superclasses (print-all-slots-mixin))
           (extend-enum ,type-name ,variants)))
 
 (defmacro extend-enum (enum-name variants)
@@ -33,7 +33,7 @@ ACCESSOR). the `&KEY' args all have sensible defaults."
 this just defines subclasses of ENUM-NAME."
   (flet ((define-variant (variant)
            (destructuring-bind (variant-name unique-slots) variant
-             `(gefjon-utils:defclass ,variant-name
+             `(defclass ,variant-name
                   ,unique-slots
                 :superclasses (,enum-name)))))
     `(progn
@@ -61,7 +61,7 @@ supplied value, starting at 0 if no value is supplied."
                 variant))))
       `(progn (deftype ,name ()
                 '(member ,@(mapcar #'variant-name variants)))
-              (defun ,(gefjon-utils:symbol-concatenate name '-to-int) (,name)
+              (defun ,(symbol-concatenate name '-to-int) (,name)
                 (ecase ,name
                   ,@(mapcar #'variant-case-clause variants)))))))
 
