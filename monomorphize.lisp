@@ -7,7 +7,7 @@
    :trivial-types
    :cl)
   (:shadowing-import-from :gefjon-utils
-   :defclass :print-all-slots-mixin)
+   :defclass)
   (:shadowing-import-from :generic-cl
    :equalp :hash :get :hash-map :make-hash-map :ensure-get)
   (:import-from :hindley-milner/typecheck/unify
@@ -54,8 +54,7 @@
    (existing-monomorphizations (hash-map-of symbol (hash-map-of type symbol))
                                :initform (make-hash-map :test #'eq))
    (parent (or lexenv null)
-           :initform nil))
-  :superclasses (print-all-slots-mixin))
+           :initform nil)))
 
 (defun push-poly-obj (lexenv let)
   (setf (get (poly-let-binding let)

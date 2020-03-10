@@ -10,7 +10,7 @@
    :make-hash-map :get)
   (:import-from :hindley-milner/syntax :operator)
   (:shadowing-import-from :gefjon-utils
-   :defclass :adjustable-vector :make-adjustable-vector :|:| :-> :optional :print-all-slots-mixin)
+   :defclass :adjustable-vector :make-adjustable-vector :|:| :-> :optional)
   (:export
    :repr-type
    :instr
@@ -61,8 +61,7 @@ this permits forms like (EVCOND TYPE (*BOOLEAN* :BOOLEAN))"
 
 (defclass place
     ((name symbol)
-     (type repr-type))
-  :superclasses (print-all-slots-mixin))
+     (type repr-type)))
 
 (deftype label-name ()
   'symbol)
@@ -92,8 +91,7 @@ this permits forms like (EVCOND TYPE (*BOOLEAN* :BOOLEAN))"
     ((name symbol)
      (arguments (adjustable-vector place))
      (locals (adjustable-vector place))
-     (body (adjustable-vector instr)))
-  :superclasses (print-all-slots-mixin))
+     (body (adjustable-vector instr))))
 
 (|:| #'find-local (-> (symbol procedure) (optional place)))
 (defun find-local (name procedure)
@@ -119,8 +117,7 @@ this permits forms like (EVCOND TYPE (*BOOLEAN* :BOOLEAN))"
 (defclass program
     ((procedures (hash-map-of symbol procedure))
      (entry-point symbol)
-     (globals (adjustable-vector place)))
-  :superclasses (print-all-slots-mixin))
+     (globals (adjustable-vector place))))
 
 (|:| #'find-global (-> (symbol program) (optional place)))
 (defun find-global (name program)

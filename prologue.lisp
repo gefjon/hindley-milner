@@ -5,7 +5,7 @@
   (:nicknames :prologue)
   (:export :defenum :extend-enum :def-c-enum :hash-map-of)
   (:shadowing-import-from :gefjon-utils
-   :defclass :symbol-concatenate :print-all-slots-mixin)
+   :defclass :symbol-concatenate)
   (:import-from :generic-cl :hash-map))
 (cl:in-package :hindley-milner/prologue)
 
@@ -23,8 +23,7 @@ list of the form (VARIANT-NAME UNIQUE-SLOTS).
 UNIQUE-SLOTS is a list of slot-descriptors, each of which is a list of
 the form (SLOT-NAME SLOT-TYPE `&KEY' INITFORM MAY-INIT-UNBOUND
 ACCESSOR). the `&KEY' args all have sensible defaults."
-  `(progn (defclass ,type-name ,common-slots
-            :superclasses (print-all-slots-mixin))
+  `(progn (defclass ,type-name ,common-slots)
           (extend-enum ,type-name ,variants)))
 
 (defmacro extend-enum (enum-name variants)

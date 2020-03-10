@@ -2,7 +2,7 @@
     (:mix :hindley-milner/subst :hindley-milner/prologue :trivial-types :cl)
   (:nicknames :ir1-type)
   (:shadowing-import-from :gefjon-utils
-   :defclass :print-all-slots-mixin)
+   :defclass)
   (:shadow :type)
   (:export
 
@@ -44,8 +44,7 @@
 
 (defclass type-scheme
   ((bindings (proper-list type-variable))
-   (body type))
-  :superclasses (print-all-slots-mixin))
+   (body type)))
 
 (subst:recurse-on-slots type-scheme
   bindings body)
