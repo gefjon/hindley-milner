@@ -1,8 +1,16 @@
 (uiop:define-package :hindley-milner/ir2
-    (:mix :iterate :hindley-milner/prologue :trivial-types :cl)
+    (:mix
+     :iterate
+     :hindley-milner/prologue
+     :trivial-types
+     :cl)
   (:nicknames :ir2)
-  (:import-from :hindley-milner/ir1
-   :*boolean* :*fixnum* :*void*)
+  (:use-reexport
+   :hindley-milner/ir2/repr-type
+   :hindley-milner/ir2/place
+   :hindley-milner/ir2/instr
+   :hindley-milner/ir2/procedure
+   :hindley-milner/ir2/program)
   (:import-from :alexandria :make-gensym)
   (:import-from :hindley-milner/monomorphize
    :mono-let :mono-let-binding :mono-let-bound-type :mono-let-initform :mono-let-body)
@@ -10,118 +18,10 @@
    :make-hash-map :get)
   (:import-from :hindley-milner/syntax :operator)
   (:shadowing-import-from :gefjon-utils
-   :defclass :adjustable-vector :make-adjustable-vector :|:| :-> :optional)
+   :|:| :-> :optional)
   (:export
-   :repr-type
-   :instr
-   :const :const-dest :const-value
-   :mov :mov-dest :mov-src
-   :binop :binop-dest :binop-lhs :binop-rhs :binop-op
-   :label :label-name
-   :goto :goto-target
-   :param :param-src
-   :call :call-dest :call-procedure :call-param-count
-   :ret :ret-val
-   :func-pointer :func-pointer-dest :func-pointer-func
-   :place :place-name :place-type
-   :procedure :procedure-name :procedure-arguments :procedure-locals :procedure-body
-   :program :program-procedures :program-globals :program-entry
    :transform-program))
 (cl:in-package :hindley-milner/ir2)
-
-(def-c-enum repr-type
-  :boolean
-  :fixnum
-  :void
-  :code-poiner)
-
-(defgeneric repr-for-ir1-type (ir1-type))
-
-(defmacro evcase (keyform &rest clauses)
-  "like ECASE, but evaluates the keyforms of each of the CLAUSES
-
-this permits forms like (EVCOND TYPE (*BOOLEAN* :BOOLEAN))"
-  (alexandria:once-only (keyform)
-    (flet ((transform-clause (clause)
-             (destructuring-bind (valform &body body) clause
-               `((eq ,valform ,keyform) ,@body))))
-      `(cond
-         ,@(mapcar #'transform-clause clauses)
-         (t (error "fell through EVCASE"))))))
-
-(defmethod repr-for-ir1-type ((ir1-type ir1-type:type-primitive))
-  (evcase ir1-type
-    (*boolean* :boolean)
-    (*fixnum* :fixnum)
-    (*void* :void)))
-
-(defmethod repr-for-ir1-type ((ir1-type ir1-type:->))
-  (declare (ignorable ir1-type))
-  :code-pointer)
-
-(defclass place
-    ((name symbol)
-     (type repr-type)))
-
-(deftype label-name ()
-  'symbol)
-
-(defenum instr ()
-  ((const ((dest place)
-           (value t)))
-   (mov ((dest place)
-         (src place)))
-   (binop ((dest place)
-           (lhs place)
-           (rhs place)
-           (op operator)))
-   (label ((name label-name)))
-   (goto ((target label-name)))
-   (goto-if ((target label-name)
-             (predicate place)))
-   (param ((src place)))
-   (call ((dest place)
-          (procedure place)
-          (param-count unsigned-byte)))
-   (ret ((val place)))
-   (func-pointer ((dest place)
-                  (func symbol)))))
-
-(defclass procedure
-    ((name symbol)
-     (arguments (adjustable-vector place))
-     (locals (adjustable-vector place))
-     (body (adjustable-vector instr))))
-
-(|:| #'find-local (-> (symbol procedure) (optional place)))
-(defun find-local (name procedure)
-  (find name (procedure-locals procedure) :key #'place-name))
-
-(|:| #'find-arg (-> (symbol procedure) (optional place)))
-(defun find-arg (name procedure)
-  (find name (procedure-arguments procedure) :key #'place-name))
-
-(defun make-empty-procedure (name arguments)
-  (make-instance 'procedure
-                 :name name
-                 :arguments (make-adjustable-vector :element-type place
-                                                    :initial-contents arguments)
-                 :locals (make-adjustable-vector :element-type place)
-                 :body (make-adjustable-vector :element-type instr)))
-
-(|:| #'push-instr (-> (procedure instr) (values &optional)))
-(defun push-instr (procedure instr)
-  (vector-push-extend instr (procedure-body procedure))
-  (values))
-
-(defclass program
-    ((procedures (hash-map-of symbol procedure))
-     (entry-point symbol)
-     (globals (adjustable-vector place))))
-
-(|:| #'find-global (-> (symbol program) (optional place)))
-(defun find-global (name program)
-  (find name (program-globals program) :key #'place-name))
 
 (|:| #'find-variable (-> (symbol program procedure) place))
 (defun find-variable (name program procedure)
@@ -129,23 +29,6 @@ this permits forms like (EVCOND TYPE (*BOOLEAN* :BOOLEAN))"
       (find-local name procedure)
       (find-global name program)
       (error "unknown variable ~a" name)))
-
-(|:| #'add-procedure (-> (program procedure) (values &optional)))
-(defun add-procedure (program procedure)
-  (setf (get (procedure-name procedure) (program-procedures program))
-        procedure)
-  (values))
-
-(defun make-empty-program ()
-  "returns (VALUES PROGRAM ENTRY-PROCEDURE)"
-  (let* ((entry-point (gensym "main"))
-         (entry-procedure (make-empty-procedure entry-point ()))
-         (program (make-instance 'program
-                                 :procedures (make-hash-map :test #'eq)
-                                 :entry-point entry-point
-                                 :globals (make-adjustable-vector :element-type place))))
-    (add-procedure program entry-procedure)
-    (values program entry-procedure)))
 
 (defun place-for-let (mono-let)
   (make-instance 'place
