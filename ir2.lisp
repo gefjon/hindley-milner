@@ -30,15 +30,15 @@
       (find-global name program)
       (error "unknown variable ~a" name)))
 
-(defun place-for-let (mono-let)
-  (make-instance 'place
+(defun place-for-let (mono-let &optional (place-type 'local))
+  (make-instance place-type
                  :name (mono-let-binding mono-let)
                  :type (repr-for-ir1-type (mono-let-bound-type mono-let))))
 
 (defun new-local (procedure &key place type name)
   (assert (or place type) (place type) "must provide either a place or type to NEW-LOCAL")
   (unless place
-    (setf place (make-instance 'place
+    (setf place (make-instance 'local
                                :name (or name (gensym))
                                :type type)))
   (vector-push-extend place (procedure-locals procedure))
@@ -46,7 +46,7 @@
 
 (defun add-global-place (program mono-let)
   "returns a PLACE"
-  (let ((place (place-for-let mono-let)))
+  (let ((place (place-for-let mono-let 'global)))
     (vector-push-extend place (program-globals program))
     place))
 
@@ -120,7 +120,7 @@
   (values))
 
 (defun lambda-arg-place (lambda)
-  (make-instance 'place
+  (make-instance 'argument
                  :name (ir1:lambda-binding lambda)
                  :type (repr-for-ir1-type (ir1-type:->-input (ir1:expr-type lambda)))))
 

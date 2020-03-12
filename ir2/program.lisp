@@ -1,10 +1,11 @@
 (uiop:define-package :hindley-milner/ir2/program
     (:mix
      :hindley-milner/prologue
+     :hindley-milner/ir2/place
      :hindley-milner/ir2/procedure
      :cl)
   (:shadowing-import-from :gefjon-utils
-   :defclass :adjustable-vector :make-adjustable-vector :|:| :->)
+   :defclass :adjustable-vector :optional :make-adjustable-vector :|:| :->)
   (:shadowing-import-from :generic-cl
    :make-hash-map :get)
   (:export
@@ -17,9 +18,9 @@
 (defclass program
     ((procedures (hash-map-of symbol procedure))
      (entry-point symbol)
-     (globals (adjustable-vector place))))
+     (globals (adjustable-vector global))))
 
-(|:| #'find-global (-> (symbol program) (optional place)))
+(|:| #'find-global (-> (symbol program) (optional global)))
 (defun find-global (name program)
   (find name (program-globals program) :key #'place-name))
 
@@ -36,7 +37,7 @@
          (program (make-instance 'program
                                  :procedures (make-hash-map :test #'eq)
                                  :entry-point entry-point
-                                 :globals (make-adjustable-vector :element-type place))))
+                                 :globals (make-adjustable-vector :element-type global))))
     (add-procedure program entry-procedure)
     (values program entry-procedure)))
 
