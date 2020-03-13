@@ -10,9 +10,7 @@
   :boolean
   :fixnum
   :void
-  :code-poiner)
-
-(defgeneric repr-for-ir1-type (ir1-type))
+  :code-pointer)
 
 (defmacro evcase (keyform &rest clauses)
   "like ECASE, but evaluates the keyforms of each of the CLAUSES
@@ -25,6 +23,8 @@ this permits forms like (EVCOND TYPE (*BOOLEAN* :BOOLEAN))"
       `(cond
          ,@(mapcar #'transform-clause clauses)
          (t (error "fell through EVCASE"))))))
+
+(defgeneric repr-for-ir1-type (ir1-type))
 
 (defmethod repr-for-ir1-type ((ir1-type ir1-type:type-primitive))
   (evcase ir1-type

@@ -7,7 +7,8 @@
    :defclass)
   (:export
    :place :place-name :place-type
-   :local :argument :global))
+   :local :argument :global
+   :place-variety))
 (cl:in-package :hindley-milner/ir2/place)
 
 (defenum place
@@ -16,3 +17,6 @@
   ((local ())
    (argument ())
    (global ())))
+
+(deftype place-variety ()
+  '(member local argument global))

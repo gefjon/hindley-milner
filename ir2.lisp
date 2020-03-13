@@ -30,20 +30,28 @@
       (find-global name program)
       (error "unknown variable ~a" name)))
 
+(|:| #'place-for-let (-> (mono-let &optional place-variety) place))
 (defun place-for-let (mono-let &optional (place-type 'local))
   (make-instance place-type
                  :name (mono-let-binding mono-let)
                  :type (repr-for-ir1-type (mono-let-bound-type mono-let))))
 
+(|:| #'new-local (-> (procedure &key
+                                (:place (optional local))
+                                (:type (optional repr-type))
+                                (:name (optional symbol)))
+                     local))
 (defun new-local (procedure &key place type name)
-  (assert (or place type) (place type) "must provide either a place or type to NEW-LOCAL")
-  (unless place
-    (setf place (make-instance 'local
-                               :name (or name (gensym))
-                               :type type)))
-  (vector-push-extend place (procedure-locals procedure))
-  place)
+  (unless (or place type)
+    (error "must provide either a PLACE or a TYPE to NEW-LOCAL"))
+  (let ((place (or place (make-instance 'local
+                                        :name (or name (gensym))
+                                        :type type))))
+    
+    (vector-push-extend place (procedure-locals procedure))
+    place))
 
+(|:| #'add-global-place (-> (program mono-let) global))
 (defun add-global-place (program mono-let)
   "returns a PLACE"
   (let ((place (place-for-let mono-let 'global)))
@@ -84,6 +92,7 @@
                   :dest store-into
                   :value (ir1:quote-it expr))))
 
+(|:| #'funcall-arg-type (-> (ir1:funcall) ir1-type:type))
 (defun funcall-arg-type (funcall)
   (ir1-type:->-input (ir1:expr-type (ir1:funcall-function funcall))))
 
@@ -119,6 +128,7 @@
        (convert-func funcall arity))))
   (values))
 
+(|:| #'lambda-arg-place (-> (ir1:lambda) argument))
 (defun lambda-arg-place (lambda)
   (make-instance 'argument
                  :name (ir1:lambda-binding lambda)
@@ -198,6 +208,7 @@
                   :procedure procedure)
     (push-instr procedure binop)))
 
+(|:| #'convert-and-discard (-> (ir1:expr program procedure) (values &optional)))
 (defun convert-and-discard (ir1-expr program procedure)
   (let ((place (new-local procedure :type (repr-for-ir1-type (ir1:expr-type ir1-expr)))))
     (convert-expr ir1-expr
@@ -212,6 +223,7 @@
                 :program program
                 :procedure procedure))
 
+(|:| #'collect-globals (-> (ir1:expr program procedure) ir1:expr))
 (defun collect-globals (ir1-prog program entry)
   "returns the first IR1:EXPR in IR1-PROG that is not a MONO-LET"
   (if (typep ir1-prog 'monomorphize:mono-let)
@@ -222,6 +234,7 @@
              (collect-globals (mono-let-body ir1-prog) program entry))
       ir1-prog))
 
+(|:| #'transform-program (-> (ir1:expr) program))
 (defun transform-program (ir1-prog)
   (multiple-value-bind (program entry) (make-empty-program)
     (let* ((entry-after-globals (collect-globals ir1-prog program entry)))
