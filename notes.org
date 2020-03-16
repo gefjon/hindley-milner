@@ -1,3 +1,16 @@
+* todos
+** TODO move ir2 to a stack machine
+   there's no particular reason to have ir2 be register-based as it is now
+   rather than stack-based; i just wrote it that way because it felt more
+   intuitive. if i change to a stack-based ir, i'll basically have wasm ready
+   to emit.
+** TODO closures
+   during the ir2 transform, whenever a function tries to access a var that
+   isn't found in its arglist or locals (before searching the globals!), find
+   it in the enclosing env and push it into a list of closure vars for that
+   function. add an extra argument to procedures for closures, i.e. an
+   env. when calling a function that takes closure arguments, first construct
+   the closure env, then eval and pass its regular parameters.
 * musings of mine
   i don't claim that any of these ideas are original, but typing them out helps
   me to understand them.
@@ -18,13 +31,3 @@
    introduce another form, ~delimit~, with the nesting rule that each ~block~
    is nested within a ~delimit~, and each ~return-from~ is nested within a
    ~block~.
-** passes
-*** TODO fuse curried functions and create closures
-    this probably involves adding a ~partially-apply~ expr which constructs a
-    closure
-*** TODO hoist expression-level functions
-    close over free variables, put all functions at top level
-*** TODO split bindings into varieties
-    top-level ~let~ s turn into either function definitions or global
-    variables. expression-level ~let~ s turn into either closures (see above)
-    or local variables.
