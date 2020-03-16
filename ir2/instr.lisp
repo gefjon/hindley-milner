@@ -4,6 +4,8 @@
      :hindley-milner/ir2/place
      :hindley-milner/ir2/repr-type
      :cl)
+  (:import-from :hindley-milner/syntax
+   :operator)
   (:export
    :instr
    :const :const-dest :const-value
@@ -36,7 +38,7 @@
    (param ((src place)))
    (call ((dest place)
           (procedure place)
-          (param-count unsigned-byte)))
+          (function-type function-type)))
    (ret ((val place)))
    (func-pointer ((dest place)
                   (func symbol)))))

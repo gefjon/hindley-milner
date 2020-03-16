@@ -3,6 +3,7 @@
      :hindley-milner/prologue
      :hindley-milner/ir2/place
      :hindley-milner/ir2/procedure
+     :hindley-milner/ir2/repr-type
      :cl)
   (:shadowing-import-from :gefjon-utils
    :defclass :adjustable-vector :optional :make-adjustable-vector :|:| :->)
@@ -33,7 +34,10 @@
 (defun make-empty-program ()
   "returns (VALUES PROGRAM ENTRY-PROCEDURE)"
   (let* ((entry-point (gensym "main"))
-         (entry-procedure (make-empty-procedure entry-point ()))
+         (entry-ftype (make-instance 'ir1-type:->
+                                     :input ir1-type:*void*
+                                     :output ir1-type:*void*))
+         (entry-procedure (make-empty-procedure entry-point () entry-ftype))
          (program (make-instance 'program
                                  :procedures (make-hash-map :test #'eq)
                                  :entry-point entry-point

@@ -98,34 +98,42 @@
 
 ;; (FUNCALL (FUNCALL func arg1) arg2) => (PARAM arg1) (PARAM arg2) (CALL func)
 (defmethod convert-expr ((expr ir1:funcall) &key store-into program procedure)
-  (flet ((convert-arg (funcall)
-           (let* ((place (new-local
-                          procedure :type (repr-for-ir1-type (funcall-arg-type funcall))))
+  (flet ((convert-arg-returning-type (funcall)
+           (let* ((type (repr-for-ir1-type (funcall-arg-type funcall)))
+                  (place (new-local
+                          procedure :type type))
                   (param (make-instance 'param
                                         :src place)))
              (convert-expr (ir1:funcall-arg funcall)
                            :store-into place
                            :program program
                            :procedure procedure)
-             (push-instr procedure param)))
-         (convert-func (expr arity)
+             (push-instr procedure param)
+             type))
+         (convert-func (expr ftype)
            (let* ((func-place (new-local procedure :type :code-pointer))
                   (call (make-instance 'call
                                        :dest store-into
                                        :procedure func-place
-                                       :param-count arity)))
+                                       :function-type ftype)))
              (convert-expr expr
                            :store-into func-place
                            :program program
                            :procedure procedure)
              (push-instr procedure call))))
     (iter
-      (for arity upfrom 1)
       (for funcall first expr then (ir1:funcall-function funcall))
       (while (typep funcall 'ir1:funcall))
-      (convert-arg funcall)
+      (collect (convert-arg-returning-type funcall)
+        into arg-types
+        at end
+        result-type (vector repr-type))
       (finally
-       (convert-func funcall arity))))
+       (let* ((result-type (repr-for-ir1-type (ir1:expr-type expr)))
+              (ftype (make-instance 'function-type
+                                    :inputs arg-types
+                                    :result result-type)))
+         (convert-func funcall ftype)))))
   (values))
 
 (|:| #'lambda-arg-place (-> (ir1:lambda) argument))
@@ -138,7 +146,8 @@
   (flet ((make-proc (args body)
            ;; returns the new proc's symbol name
            (let* ((proc-name (make-gensym (place-name store-into)))
-                  (new-proc (make-empty-procedure proc-name args))
+                  (->-type (ir1:expr-type expr))
+                  (new-proc (make-empty-procedure proc-name args ->-type))
                   (ret-place (new-local new-proc :type (repr-for-ir1-type (ir1:expr-type body))))
                   (ret (make-instance 'ret
                                       :val ret-place)))

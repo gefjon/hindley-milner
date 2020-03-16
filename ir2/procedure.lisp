@@ -1,5 +1,6 @@
 (uiop:define-package :hindley-milner/ir2/procedure
     (:mix
+     :hindley-milner/ir2/repr-type
      :hindley-milner/ir2/instr
      :hindley-milner/ir2/place
      :cl)
@@ -14,7 +15,8 @@
 
 (defclass procedure
     ((name symbol)
-     (arguments (adjustable-vector argument))
+     (function-type function-type)
+     (arguments (vector argument))
      (locals (adjustable-vector local))
      (body (adjustable-vector instr))))
 
@@ -26,11 +28,13 @@
 (defun find-arg (name procedure)
   (find name (procedure-arguments procedure) :key #'place-name))
 
-(defun make-empty-procedure (name arguments)
+(defun make-empty-procedure (name arguments ->-type)
   (make-instance 'procedure
                  :name name
-                 :arguments (make-adjustable-vector :element-type argument
-                                                    :initial-contents arguments)
+                 :function-type (ftype-for-ir1-type ->-type)
+                 :arguments (make-array (length arguments)
+                                        :element-type 'argument
+                                        :initial-contents arguments)
                  :locals (make-adjustable-vector :element-type local)
                  :body (make-adjustable-vector :element-type instr)))
 
