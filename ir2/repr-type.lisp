@@ -3,7 +3,7 @@
   (:import-from :hindley-milner/ir1
    :*boolean* :*fixnum* :*void*)
   (:shadowing-import-from :gefjon-utils
-   :defclass)
+   :defclass :|:| :->)
   (:nicknames :repr-type)
   (:export
    :repr-type
@@ -45,6 +45,7 @@ this permits forms like (EVCOND TYPE (*BOOLEAN* :BOOLEAN))"
   (declare (ignorable ir1-type))
   :code-pointer)
 
+(|:| #'ftype-for-ir1-type (-> (ir1-type:->) function-type))
 (defun ftype-for-ir1-type (ir1-type:->)
   (iter
     (for -> first ir1-type:-> then (ir1-type:->-output ->))

@@ -28,6 +28,7 @@
 (defun find-arg (name procedure)
   (find name (procedure-arguments procedure) :key #'place-name))
 
+(|:| #'make-empty-procedure (-> (symbol sequence ir1-type:->) procedure))
 (defun make-empty-procedure (name arguments ->-type)
   (make-instance 'procedure
                  :name name
