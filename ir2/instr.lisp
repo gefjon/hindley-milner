@@ -8,37 +8,41 @@
    :operator)
   (:export
    :instr
-   :const :const-dest :const-value
-   :mov :mov-dest :mov-src
-   :binop :binop-dest :binop-lhs :binop-rhs :binop-op
+   :const :const-type :const-value
+   :get-var :get-var-src
+   :set-var :set-var-dest
+   :drop
+   :binop :binop-op
    :label :label-name
    :goto :goto-target
-   :param :param-src
-   :call :call-dest :call-procedure :call-param-count
-   :ret :ret-val
-   :func-pointer :func-pointer-dest :func-pointer-func))
+   :goto-if :goto-if-target
+   :call :call-procedure :call-function-type
+   :ret :ret-type
+   :func-pointer :func-pointer-name))
 (cl:in-package :hindley-milner/ir2/instr)
 
 (deftype label-name ()
   'symbol)
 
 (defenum instr ()
-  ((const ((dest place)
+  ((const ; pushes a value to the stack
+          ((type repr-type)
            (value t)))
-   (mov ((dest place)
-         (src place)))
-   (binop ((dest place)
-           (lhs place)
-           (rhs place)
-           (op operator)))
+   (get-var ; pushes a value to the stack
+            ((src place)))
+   (set-var ; takes a value from the stack
+            ((dest place)))
+   (drop ; discards a value from the stack
+    ())
+   (binop ; takes two inputs from the stack, pushes a result
+          ((op operator)))
    (label ((name label-name)))
    (goto ((target label-name)))
-   (goto-if ((target label-name)
-             (predicate place)))
-   (param ((src place)))
-   (call ((dest place)
-          (procedure place)
-          (function-type function-type)))
-   (ret ((val place)))
-   (func-pointer ((dest place)
-                  (func symbol)))))
+   (goto-if ; takes a boolean off the stack
+            ((target label-name)))
+   (call ; takes args followed by a function from the stack
+         ((function-type function-type)))
+   (ret ; takes a value from the stack, unless the type is :void
+        ((type repr-type)))
+   (func-pointer ; pushes a function pointer onto the stack
+    ((name symbol)))))

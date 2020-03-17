@@ -58,66 +58,57 @@
     (vector-push-extend place (program-globals program))
     place))
 
-(defgeneric convert-expr (ir1-expr &key store-into program procedure)
+(defgeneric convert-expr (ir1-expr &key program procedure)
   (:documentation
    "convert IR1-EXPR into a series of INSTRs in PROCEDURE which store their result into STORE-INTO"))
 
-;; (LET (foo bar) baz) => (MOV foo bar) baz
-(defmethod convert-expr ((expr mono-let) &key store-into program procedure)
+;; (LET (foo bar) baz) => bar; SET foo; baz
+(defmethod convert-expr ((expr mono-let) &key program procedure)
   (let ((place (place-for-let expr)))
     (new-local procedure :place place)
     (convert-expr (mono-let-initform expr)
-                  :store-into place
                   :program program
-                  :procedure procedure))
+                  :procedure procedure)
+    (push-instr procedure
+                (make-instance 'set-var
+                               :dest place)))
   (convert-expr (mono-let-body expr)
-                :store-into store-into
                 :program program
                 :procedure procedure)
   (values))
 
-;; (VARIABLE foo) => (MOV dest foo)
-(defmethod convert-expr ((expr ir1:variable) &key store-into program procedure)
+;; (VARIABLE foo) => GET foo
+(defmethod convert-expr ((expr ir1:variable) &key program procedure)
   (let* ((name (ir1:variable-name expr))
-         (mov (make-instance 'mov
-                            :dest store-into
-                            :src (find-variable name program procedure))))
+         (place (find-variable name program procedure))
+         (mov (make-instance 'get-var
+                             :src place)))
     (push-instr procedure mov)))
 
-;; (QUOTE foo) => (CONST dest foo)
-(defmethod convert-expr ((expr ir1:quote) &key store-into program procedure)
+;; (QUOTE foo) => CONST repr-type foo
+(defmethod convert-expr ((expr ir1:quote) &key program procedure)
   (declare (ignore program))
   (push-instr procedure
               (make-instance 'const
-                  :dest store-into
+                  :type (repr-for-ir1-type (ir1:expr-type expr))
                   :value (ir1:quote-it expr))))
 
 (|:| #'funcall-arg-type (-> (ir1:funcall) ir1-type:type))
 (defun funcall-arg-type (funcall)
   (ir1-type:->-input (ir1:expr-type (ir1:funcall-function funcall))))
 
-;; (FUNCALL (FUNCALL func arg1) arg2) => (PARAM arg1) (PARAM arg2) (CALL func)
-(defmethod convert-expr ((expr ir1:funcall) &key store-into program procedure)
+;; (FUNCALL (FUNCALL func arg1) arg2) => arg1; arg2; func; CALL ftype
+(defmethod convert-expr ((expr ir1:funcall) &key program procedure)
   (flet ((convert-arg-returning-type (funcall)
-           (let* ((type (repr-for-ir1-type (funcall-arg-type funcall)))
-                  (place (new-local
-                          procedure :type type))
-                  (param (make-instance 'param
-                                        :src place)))
+           (let* ((type (repr-for-ir1-type (funcall-arg-type funcall))))
              (convert-expr (ir1:funcall-arg funcall)
-                           :store-into place
                            :program program
                            :procedure procedure)
-             (push-instr procedure param)
              type))
          (convert-func (expr ftype)
-           (let* ((func-place (new-local procedure :type :code-pointer))
-                  (call (make-instance 'call
-                                       :dest store-into
-                                       :procedure func-place
+           (let* ((call (make-instance 'call
                                        :function-type ftype)))
              (convert-expr expr
-                           :store-into func-place
                            :program program
                            :procedure procedure)
              (push-instr procedure call))))
@@ -142,21 +133,21 @@
                  :name (ir1:lambda-binding lambda)
                  :type (repr-for-ir1-type (ir1-type:->-input (ir1:expr-type lambda)))))
 
-(defmethod convert-expr ((expr ir1:lambda) &key store-into program ((:procedure caller)))
+;; (LAMBDA arg1 (LAMBDA arg2 body)) => FUNCTION-POINTER gensym
+(defmethod convert-expr ((expr ir1:lambda) &key program ((:procedure caller)))
   (flet ((make-proc (args body)
            ;; returns the new proc's symbol name
-           (let* ((proc-name (make-gensym (place-name store-into)))
+           (let* ((proc-name (make-gensym "lambda"))
                   (->-type (ir1:expr-type expr))
                   (new-proc (make-empty-procedure proc-name args ->-type))
-                  (ret-place (new-local new-proc :type (repr-for-ir1-type (ir1:expr-type body))))
                   (ret (make-instance 'ret
-                                      :val ret-place)))
+                                      :type (repr-for-ir1-type (ir1:expr-type body)))))
              (convert-expr body
-                           :store-into ret-place
                            :procedure new-proc
                            :program program)
              (push-instr new-proc ret)
-             (add-procedure program new-proc))))
+             (add-procedure program new-proc)
+             proc-name)))
     (iter
       (for lambda first expr then (ir1:lambda-body lambda))
       (while (typep lambda 'ir1:lambda))
@@ -165,70 +156,64 @@
       (finally
        (push-instr caller
                    (make-instance 'func-pointer
-                                  :dest store-into
-                                  :func (make-proc args lambda)))))))
+                                  :name (make-proc args lambda)))))))
 
-(defmethod convert-expr ((expr ir1:if) &key store-into program procedure)
-  (let* ((pred-place (new-local procedure :type :boolean))
-         (then-label-name (gensym "then-case"))
+;; (IF pred then else) =>
+;;   pred;
+;;   GOTO-IF then-lbl;
+;;   else;
+;;   GOTO end-lbl;
+;;   LABEL then-lbl;
+;;   then;
+;;   LABEL end-lbl;
+(defmethod convert-expr ((expr ir1:if) &key program procedure)
+  (let* ((then-label-name (gensym "then-case"))
          (then-label (make-instance 'label :name then-label-name))
          (end-label-name (gensym "end"))
          (end-label (make-instance 'label :name end-label-name))
          (cond-branch (make-instance 'goto-if
-                                     :target then-label-name
-                                     :predicate pred-place))
+                                     :target then-label-name))
          (end-branch (make-instance 'goto
                                     :target end-label-name)))
     (convert-expr (ir1:if-predicate expr)
-                  :store-into pred-place
                   :program program
                   :procedure procedure)
     (push-instr procedure cond-branch)
     ;; compile the else-case first to avoid an extra branch
     (convert-expr (ir1:if-else-case expr)
-                  :store-into store-into
                   :program program
                   :procedure procedure)
     (push-instr procedure end-branch)
     (push-instr procedure then-label)
     (convert-expr (ir1:if-then-case expr)
-                  :store-into store-into
                   :program program
                   :procedure procedure)
     (push-instr procedure end-label)))
 
-(defmethod convert-expr ((expr ir1:binop) &key store-into program procedure)
+(defmethod convert-expr ((expr ir1:binop) &key program procedure)
   (let* ((lhs-expr (ir1:binop-lhs expr))
          (rhs-expr (ir1:binop-rhs expr))
-         (lhs (new-local procedure :type (repr-for-ir1-type (ir1:expr-type lhs-expr))))
-         (rhs (new-local procedure :type (repr-for-ir1-type (ir1:expr-type rhs-expr))))
          (binop (make-instance 'binop
-                               :dest store-into
-                               :lhs lhs
-                               :rhs rhs
                                :op (ir1:binop-op expr))))
     (convert-expr lhs-expr
-                  :store-into lhs
                   :program program
                   :procedure procedure)
     (convert-expr rhs-expr
-                  :store-into rhs
                   :program program
                   :procedure procedure)
     (push-instr procedure binop)))
 
 (|:| #'convert-and-discard (-> (ir1:expr program procedure) (values &optional)))
 (defun convert-and-discard (ir1-expr program procedure)
-  (let ((place (new-local procedure :type (repr-for-ir1-type (ir1:expr-type ir1-expr)))))
-    (convert-expr ir1-expr
-                  :store-into place
-                  :program program
-                  :procedure procedure)))
+  (convert-expr ir1-expr
+                :program program
+                :procedure procedure)
+  (push-instr procedure
+              (make-instance 'drop)))
 
-(defmethod convert-expr ((expr ir1:prog2) &key store-into program procedure)
+(defmethod convert-expr ((expr ir1:prog2) &key program procedure)
   (convert-and-discard (ir1:prog2-side-effect expr) program procedure)
   (convert-expr (ir1:prog2-return-value expr)
-                :store-into store-into
                 :program program
                 :procedure procedure))
 
@@ -236,11 +221,14 @@
 (defun collect-globals (ir1-prog program entry)
   "returns the first IR1:EXPR in IR1-PROG that is not a MONO-LET"
   (if (typep ir1-prog 'monomorphize:mono-let)
-      (progn (convert-expr (mono-let-initform ir1-prog)
-                         :store-into (add-global-place program ir1-prog)
-                         :program program
-                         :procedure entry)
-             (collect-globals (mono-let-body ir1-prog) program entry))
+      (progn
+        (convert-expr (mono-let-initform ir1-prog)
+                      :program program
+                      :procedure entry)
+        (push-instr entry
+                    (make-instance 'set-var
+                                   :dest (add-global-place program ir1-prog)))
+        (collect-globals (mono-let-body ir1-prog) program entry))
       ir1-prog))
 
 (|:| #'transform-program (-> (ir1:expr) program))

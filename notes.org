@@ -1,5 +1,6 @@
 * todos
-** TODO move ir2 to a stack machine
+** DONE move ir2 to a stack machine
+   CLOSED: [2020-03-17 Tue 11:49]
    there's no particular reason to have ir2 be register-based as it is now
    rather than stack-based; i just wrote it that way because it felt more
    intuitive. if i change to a stack-based ir, i'll basically have wasm ready
