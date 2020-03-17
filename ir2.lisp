@@ -66,27 +66,31 @@
     (vector-push-extend place (program-globals *program*))
     place))
 
-(defgeneric convert-expr (ir1-expr)
+(defgeneric convert-expr (ir1-expr &key bound-name &allow-other-keys)
   (:documentation
-   "convert IR1-EXPR into a series of INSTRs in PROCEDURE which store their result into STORE-INTO"))
+   "convert IR1-EXPR into a series of INSTRs in *CURRENT-PROCEDURE*
+
+if BOUND-NAME is supplied, it should be a symbol to which the result
+of IR1-EXPR will be bound. this is used to produce better debug
+info."))
 
 ;; (LET (foo bar) baz) => bar; SET foo; baz
-(defmethod convert-expr ((expr mono-let))
+(defmethod convert-expr ((expr mono-let) &rest args &key &allow-other-keys)
   (let ((place (place-for-let expr)))
     (new-local :place place)
-    (convert-expr (mono-let-initform expr))
+    (convert-expr (mono-let-initform expr) :bound-name (mono-let-binding expr))
     (instr set-var :dest place))
-  (convert-expr (mono-let-body expr))
+  (apply #'convert-expr (mono-let-body expr) args)
   (values))
 
 ;; (VARIABLE foo) => GET foo
-(defmethod convert-expr ((expr ir1:variable))
+(defmethod convert-expr ((expr ir1:variable) &key &allow-other-keys)
   (let* ((name (ir1:variable-name expr))
          (place (find-variable name)))
     (instr get-var :src place)))
 
 ;; (QUOTE foo) => CONST repr-type foo
-(defmethod convert-expr ((expr ir1:quote))
+(defmethod convert-expr ((expr ir1:quote) &key &allow-other-keys)
   (instr const
          :type (repr-for-ir1-type (ir1:expr-type expr))
          :value (ir1:quote-it expr)))
@@ -96,7 +100,7 @@
   (ir1-type:->-input (ir1:expr-type (ir1:funcall-function funcall))))
 
 ;; (FUNCALL (FUNCALL func arg1) arg2) => arg1; arg2; func; CALL ftype
-(defmethod convert-expr ((expr ir1:funcall))
+(defmethod convert-expr ((expr ir1:funcall) &key &allow-other-keys)
   (flet ((convert-arg-returning-type (funcall)
            (let* ((type (repr-for-ir1-type (funcall-arg-type funcall))))
              (convert-expr (ir1:funcall-arg funcall))
@@ -126,10 +130,10 @@
                  :type (repr-for-ir1-type (ir1-type:->-input (ir1:expr-type lambda)))))
 
 ;; (LAMBDA arg1 (LAMBDA arg2 body)) => FUNCTION-POINTER gensym
-(defmethod convert-expr ((expr ir1:lambda))
+(defmethod convert-expr ((expr ir1:lambda) &key (bound-name 'lambda) &allow-other-keys)
   (flet ((make-proc (args body)
            ;; returns the new proc's symbol name
-           (let* ((proc-name (make-gensym "lambda"))
+           (let* ((proc-name (make-gensym bound-name))
                   (->-type (ir1:expr-type expr))
                   (*current-procedure*
                     (make-empty-procedure proc-name args ->-type)))
@@ -153,19 +157,19 @@
 ;;   LABEL then-lbl;
 ;;   then;
 ;;   LABEL end-lbl;
-(defmethod convert-expr ((expr ir1:if))
+(defmethod convert-expr ((expr ir1:if) &rest args &key &allow-other-keys)
   (let* ((then-label (gensym "then-case"))
          (end-label (gensym "end")))
     (convert-expr (ir1:if-predicate expr))
     (instr goto-if :target then-label)
     ;; compile the else-case first to avoid an extra branch
-    (convert-expr (ir1:if-else-case expr))
+    (apply #'convert-expr (ir1:if-else-case expr) args)
     (instr goto :target end-label)
     (instr label :name then-label)
-    (convert-expr (ir1:if-then-case expr))
+    (apply #'convert-expr (ir1:if-then-case expr) args)
     (instr label :name end-label)))
 
-(defmethod convert-expr ((expr ir1:binop))
+(defmethod convert-expr ((expr ir1:binop) &key &allow-other-keys)
   (convert-expr (ir1:binop-lhs expr))
   (convert-expr (ir1:binop-rhs expr))
   (instr binop :op (ir1:binop-op expr)))
@@ -175,16 +179,17 @@
   (convert-expr ir1-expr)
   (instr drop))
 
-(defmethod convert-expr ((expr ir1:prog2))
+(defmethod convert-expr ((expr ir1:prog2) &rest args &key &allow-other-keys)
   (convert-and-discard (ir1:prog2-side-effect expr))
-  (convert-expr (ir1:prog2-return-value expr)))
+  (apply #'convert-expr (ir1:prog2-return-value expr) args))
 
 (|:| #'collect-globals (-> (ir1:expr) ir1:expr))
 (defun collect-globals (ir1-prog)
   "returns the first IR1:EXPR in IR1-PROG that is not a MONO-LET"
   (if (typep ir1-prog 'monomorphize:mono-let)
       (progn
-        (convert-expr (mono-let-initform ir1-prog))
+        (convert-expr (mono-let-initform ir1-prog)
+                      :bound-name (mono-let-binding ir1-prog))
         (instr set-var :dest (add-global-place ir1-prog))
         (collect-globals (mono-let-body ir1-prog)))
       ir1-prog))
