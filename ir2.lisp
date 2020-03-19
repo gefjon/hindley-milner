@@ -66,6 +66,63 @@
     (vector-push-extend place (program-globals *program*))
     place))
 
+(|:| #'construct-and-add-lambda (-> (ir1:lambda symbol) symbol))
+(defun construct-and-add-lambda (expr bound-name)
+  "returns the global-name of the new procedure"
+  (flet ((make-proc (args body)
+           ;; returns the new proc's symbol name
+           (let* ((proc-name (make-gensym bound-name))
+                  (->-type (ir1:expr-type expr))
+                  (*current-procedure*
+                    (make-empty-procedure proc-name args ->-type)))
+             (convert-expr body)
+             (instr ret :type (repr-for-ir1-type (ir1:expr-type body)))
+             (add-procedure *program* *current-procedure*)
+             proc-name)))
+    (iter
+      (for lambda first expr then (ir1:lambda-body lambda))
+      (while (typep lambda 'ir1:lambda))
+      (for arg = (lambda-arg-place lambda))
+      (collect arg into args at end)
+      (finally
+       (let ((proc-name (make-proc args lambda)))
+         (add-local-function bound-name proc-name *current-procedure*)
+         (return proc-name))))))
+
+(defgeneric convert-func (ir1-expr ftype)
+  (:documentation "insert INSTRs into *CURRENT-PROCEDURE* resulting in a call to the function denoted by IR1-EXPR"))
+
+(defmethod convert-func ((expr ir1:lambda) ftype)
+  (instr call
+         :function (construct-and-add-lambda expr (make-gensym 'lambda))
+         :function-type ftype))
+
+(defmethod convert-func ((expr ir1:variable) ftype)
+  (flet ((call-to-local ()
+           (let ((name (find-local-function (ir1:variable-name expr) *current-procedure*)))
+             (unless name
+               (return-from call-to-local nil))
+             (instr call
+                    :function name
+                    :function-type ftype))
+           t)
+         (call-to-variable ()
+           (let* ((name (ir1:variable-name expr))
+                  (local (or (find-local name *current-procedure*)
+                             (find-arg name *current-procedure*))))
+             (unless local
+               (return-from call-to-variable nil))
+             (instr get-var :src local)
+             (instr call-indirect :function-type ftype))
+           t)
+         (call-to-global ()
+           (instr call
+                  :function (ir1:variable-name expr)
+                  :function-type ftype)))
+    (or (call-to-local)
+        (call-to-variable)
+        (call-to-global))))
+
 (defgeneric convert-expr (ir1-expr &key bound-name &allow-other-keys)
   (:documentation
    "convert IR1-EXPR into a series of INSTRs in *CURRENT-PROCEDURE*
@@ -99,15 +156,12 @@ info."))
 (defun funcall-arg-type (funcall)
   (ir1-type:->-input (ir1:expr-type (ir1:funcall-function funcall))))
 
-;; (FUNCALL (FUNCALL func arg1) arg2) => arg1; arg2; func; CALL ftype
+;; (FUNCALL (FUNCALL func arg1) arg2) => arg1; arg2; CALL func ftype
 (defmethod convert-expr ((expr ir1:funcall) &key &allow-other-keys)
   (flet ((convert-arg-returning-type (funcall)
            (let* ((type (repr-for-ir1-type (funcall-arg-type funcall))))
              (convert-expr (ir1:funcall-arg funcall))
-             type))
-         (convert-func (expr ftype)
-           (convert-expr expr)
-           (instr call :function-type ftype)))
+             type)))
     (iter
       (for funcall first expr then (ir1:funcall-function funcall))
       (while (typep funcall 'ir1:funcall))
@@ -130,24 +184,8 @@ info."))
                  :type (repr-for-ir1-type (ir1-type:->-input (ir1:expr-type lambda)))))
 
 ;; (LAMBDA arg1 (LAMBDA arg2 body)) => FUNCTION-POINTER gensym
-(defmethod convert-expr ((expr ir1:lambda) &key (bound-name 'lambda) &allow-other-keys)
-  (flet ((make-proc (args body)
-           ;; returns the new proc's symbol name
-           (let* ((proc-name (make-gensym bound-name))
-                  (->-type (ir1:expr-type expr))
-                  (*current-procedure*
-                    (make-empty-procedure proc-name args ->-type)))
-             (convert-expr body)
-             (instr ret :type (repr-for-ir1-type (ir1:expr-type body)))
-             (add-procedure *program* *current-procedure*)
-             proc-name)))
-    (iter
-      (for lambda first expr then (ir1:lambda-body lambda))
-      (while (typep lambda 'ir1:lambda))
-      (for arg = (lambda-arg-place lambda))
-      (collect arg into args at end)
-      (finally
-       (instr func-pointer :name (make-proc args lambda))))))
+(defmethod convert-expr ((expr ir1:lambda) &key (bound-name (make-gensym 'lambda)) &allow-other-keys)
+  (instr func-pointer :name (construct-and-add-lambda expr bound-name)))
 
 ;; (IF pred then else) =>
 ;;   pred;

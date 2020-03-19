@@ -40,8 +40,12 @@
    (goto ((target label-name)))
    (goto-if ; takes a boolean off the stack
             ((target label-name)))
-   (call ; takes args followed by a function from the stack
-         ((function-type function-type)))
+   (call ; takes args from the stack, with the leftmost deepest
+         ((function symbol)
+          (function-type function-type)))
+   (call-indirect ; takes a function pointer from the stack. the
+                  ; function pointer should be above the args.
+                  ((function-type function-type)))
    (ret ; takes a value from the stack, unless the type is :void
         ((type repr-type)))
    (func-pointer ; pushes a function pointer onto the stack
