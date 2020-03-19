@@ -93,18 +93,27 @@
   (:documentation "insert INSTRs into *CURRENT-PROCEDURE* resulting in a call to the function denoted by IR1-EXPR"))
 
 (defmethod convert-func ((expr ir1:lambda) ftype)
+  "generates a new global function with a gensym name and emits a call to it"
   (instr call
          :function (construct-and-add-lambda expr (make-gensym 'lambda))
          :function-type ftype))
+
+(defmethod convert-func ((func symbol) ftype)
+  "emit a call to the global function named by FUNC"
+  (instr call
+         :function func
+         :function-type ftype))
+
+(defmethod convert-func ((func place) ftype)
+  (instr get-var :src func)
+  (instr call-indirect :function-type ftype))
 
 (defmethod convert-func ((expr ir1:variable) ftype)
   (flet ((call-to-local ()
            (let ((name (find-local-function (ir1:variable-name expr) *current-procedure*)))
              (unless name
                (return-from call-to-local nil))
-             (instr call
-                    :function name
-                    :function-type ftype))
+             (convert-func name ftype))
            t)
          (call-to-variable ()
            (let* ((name (ir1:variable-name expr))
@@ -112,16 +121,14 @@
                              (find-arg name *current-procedure*))))
              (unless local
                (return-from call-to-variable nil))
-             (instr get-var :src local)
-             (instr call-indirect :function-type ftype))
+             (convert-func local ftype))
            t)
          (call-to-global ()
-           (instr call
-                  :function (ir1:variable-name expr)
-                  :function-type ftype)))
+           (convert-func (ir1:variable-name expr))))
     (or (call-to-local)
         (call-to-variable)
-        (call-to-global))))
+        (call-to-global))
+    (values)))
 
 (defgeneric convert-expr (ir1-expr &key bound-name &allow-other-keys)
   (:documentation
@@ -156,7 +163,7 @@ info."))
 (defun funcall-arg-type (funcall)
   (ir1-type:->-input (ir1:expr-type (ir1:funcall-function funcall))))
 
-;; (FUNCALL (FUNCALL func arg1) arg2) => arg1; arg2; CALL func ftype
+;; (FUNCALL (FUNCALL func arg1) arg2) => arg1; arg2; (CONVERT-FUNC func ftype)
 (defmethod convert-expr ((expr ir1:funcall) &key &allow-other-keys)
   (flet ((convert-arg-returning-type (funcall)
            (let* ((type (repr-for-ir1-type (funcall-arg-type funcall))))

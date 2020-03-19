@@ -5,6 +5,8 @@
    rather than stack-based; i just wrote it that way because it felt more
    intuitive. if i change to a stack-based ir, i'll basically have wasm ready
    to emit.
+** investigate potential bugs in current function-naming scheme
+*** TODO what happens if you bind two different lambdas to the same let-place with an IF
 ** TODO closures
    during the ir2 transform, whenever a function tries to access a var that
    isn't found in its arglist or locals (before searching the globals!), find
