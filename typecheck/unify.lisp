@@ -2,7 +2,7 @@
     (:nicknames :unify)
   (:mix :hindley-milner/ir1/type :iterate :cl)
   (:import-from :hindley-milner/typecheck/infer
-   :constraints :constraint :constraint-lhs :constraint-rhs :constraint-acons)
+   :constraints :constraint :constraint-lhs :constraint-rhs)
   (:import-from :hindley-milner/typecheck/substitute
    :substitution :apply-substitution)
   (:export :solve :unify))
@@ -47,11 +47,15 @@
   (bind rhs lhs))
 
 (defmethod unify ((lhs ->) (rhs ->))
-  (solve (constraint-acons (->-input lhs)
-                           (->-input rhs)
-                           (constraint-acons (->-output lhs)
-                                             (->-output rhs)
-                                             ()))))
+  (iter
+    (for lhs-input in-vector (->-inputs lhs))
+    (for rhs-input in-vector (->-inputs rhs))
+    (collect (cons lhs-input rhs-input) into input-constraints at beginning)
+    (finally
+     (return
+       (solve (acons (->-output lhs)
+                     (->-output rhs)
+                     input-constraints))))))
 
 (defmethod unify ((lhs type-primitive) (rhs type-primitive))
   (unless (eq (type-primitive-name lhs) (type-primitive-name rhs))

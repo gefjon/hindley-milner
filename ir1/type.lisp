@@ -9,7 +9,7 @@
    :type
    :type-variable :type-variable-name
    :type-primitive :type-primitive-name :*boolean* :*fixnum* :*void*
-   :-> :->-input :->-output
+   :-> :->-inputs :->-output
    
    :new-type-variable
 
@@ -21,14 +21,14 @@
 (defenum type ()
   ((type-variable ((name symbol)))
    (type-primitive ((name t)))
-   (-> ((input type)
+   (-> ((inputs (vector type))
         (output type)))))
 
 ;; note that `SUBST' does not recurse into `TYPE-PRIMITIVE', because
 ;; `TYPE-PRIMITIVE-NAME's should not be substituted
 
 (subst:recurse-on-slots ->
-  input output)
+  inputs output)
 
 (defvar *boolean* (make-instance 'type-primitive :name 'cl:boolean))
 (defvar *fixnum* (make-instance 'type-primitive :name 'cl:fixnum))

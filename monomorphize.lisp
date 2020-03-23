@@ -30,10 +30,10 @@
                          (body expr)))))
 
 (defmethod equalp ((lhs ->) (rhs ->))
-  (and (equalp (->-input lhs) (->-input rhs))
+  (and (equalp (->-inputs lhs) (->-inputs rhs))
        (equalp (->-output lhs) (->-output rhs))))
 (defmethod hash ((obj ->))
-  (logxor (hash (->-input obj))
+  (logxor (hash (->-inputs obj))
           (hash (->-output obj))))
 
 (defmethod equalp ((lhs type-primitive) (rhs type-primitive))
@@ -155,24 +155,32 @@ defines a method for the class `FUNCALL' which recurses on its slots
          ,@body))))
 
 (define-monomorphize funcall
-  (make-instance 'funcall
-                 :type (expr-type funcall)
-                 :function (recurse (funcall-function funcall))
-                 :arg (recurse (funcall-arg funcall))))
+  (let* ((function (recurse (funcall-function funcall)))
+         (return-type (->-output (expr-type function)))
+         (args (map '(vector expr) #'recurse (funcall-args funcall))))
+    (make-instance 'funcall
+                   :type return-type
+                   :function (recurse (funcall-function funcall))
+                   :args args)))
 
 (define-monomorphize (lambda enclosing-env)
-  (let ((local-env (make-instance 'lexenv
-                                  :parent enclosing-env))
-        (bound-name (lambda-binding lambda))
-        (bound-type (->-input (expr-type lambda))))
+  (iter
+    (with local-env = (make-instance 'lexenv
+                                     :parent enclosing-env))
+    (for bound-name in-vector (lambda-bindings lambda))
+    (for bound-type in-vector (->-inputs (expr-type lambda)))
     (insert-into-existing-monomorphizations-map local-env
-                                                (lambda-binding lambda)
+                                                bound-name
                                                 bound-type
                                                 bound-name)
-    (make-instance 'lambda
-                   :type (expr-type lambda)
-                   :binding (lambda-binding lambda)
-                   :body (recurse (lambda-body lambda) local-env))))
+    (finally
+     (let* ((body (recurse (lambda-body lambda) local-env))
+            (return-type (expr-type body)))
+       (return
+         (make-instance 'lambda
+                        :type return-type
+                        :bindings (lambda-bindings lambda)
+                        :body body))))))
 
 (define-monomorphize (poly-let enclosing-env)
   (let* ((local-env (make-instance 'lexenv
@@ -191,11 +199,15 @@ defines a method for the class `FUNCALL' which recurses on its slots
       (finally (return body)))))
 
 (define-monomorphize if
-  (make-instance 'if
-                 :type (expr-type if)
-                 :predicate (recurse (if-predicate if))
-                 :then-case (recurse (if-then-case if))
-                 :else-case (recurse (if-else-case if))))
+  (let* ((predicate (recurse (if-predicate if)))
+         (then-case (recurse (if-then-case if)))
+         (else-case (recurse (if-else-case if)))
+         (return-type (expr-type then-case)))
+    (make-instance 'if
+                   :type return-type
+                   :predicate predicate
+                   :then-case then-case
+                   :else-case else-case)))
 
 (define-monomorphize binop
   (make-instance 'binop
@@ -205,10 +217,13 @@ defines a method for the class `FUNCALL' which recurses on its slots
                  :rhs (recurse (binop-rhs binop))))
 
 (define-monomorphize prog2
-  (make-instance 'prog2
-                 :type (expr-type prog2)
-                 :side-effect (recurse (prog2-side-effect prog2))
-                 :return-value (recurse (prog2-return-value prog2))))
+  (let* ((side-effect (recurse (prog2-side-effect prog2)))
+         (return-value (recurse (prog2-return-value prog2)))
+         (return-type (expr-type return-value)))
+    (make-instance 'prog2
+                   :type return-type
+                   :side-effect side-effect
+                   :return-value return-value)))
 
 (declaim (ftype (function (expr) (values expr &optional))
                 monomorphize-program))

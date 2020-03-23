@@ -36,8 +36,13 @@
   (declare (ignorable within))
   '())
 
+(defmethod free-type-variables ((within vector))
+  (iter
+    (for element in-vector within)
+    (adjoining element)))
+
 (defmethod free-type-variables ((within ->))
-  (union (free-type-variables (->-input within))
+  (union (free-type-variables (->-inputs within))
          (free-type-variables (->-output within))))
 
 ;; this is a named function (rather than a method on

@@ -1,5 +1,5 @@
 (uiop:define-package :hindley-milner/subst
-    (:mix :hindley-milner/prologue :cl)
+    (:mix :hindley-milner/prologue :iterate :cl)
   (:import-from :alexandria :make-gensym)
   (:import-from :gefjon-utils
    :symbol-concatenate
@@ -77,3 +77,7 @@ define recursive methods using `HINDLEY-MILNER/SUBST:DEFINE-SUBST'"
                  (let ((copy (shallow-copy instance)))
                    ,@(mapcar #'setf-slot-form slot-names slot-gensyms slot-boundp-gensyms)
                    copy))))))))
+
+(define-subst vector
+  (map (type-of vector)
+       #'recurse vector))

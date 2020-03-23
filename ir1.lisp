@@ -10,8 +10,8 @@
    :expr :expr-type
    :variable :variable-name
    :quote :quote-it
-   :funcall :funcall-function :funcall-arg
-   :lambda  :lambda-binding :lambda-body
+   :funcall :funcall-function :funcall-args
+   :lambda  :lambda-bindings :lambda-body
    :poly-let :poly-let-binding :poly-let-scheme :poly-let-initform :poly-let-body
    :if :if-predicate :if-then-case :if-else-case
    :binop :binop-op :binop-lhs :binop-rhs
@@ -21,11 +21,6 @@
 (cl:in-package :hindley-milner/ir1)
 
 ;;;; transformations from surface-syntax to ir1:
-;; - functions are explicitly curried, so we transform lambdas and
-;;   funcalls of multiple arguments into nested lambdas or
-;;   funcalls. this makes type-checking cleaner, because every binding
-;;   form introduces exactly one binding.
-;;
 ;; - implicit progns (e.g. in let or lambda) are made explicit
 ;; 
 ;; - literals are tagged with a quote
@@ -34,8 +29,8 @@
     ((variable ((name symbol)))
      (quote ((it syntax:literal)))
      (funcall ((function expr)
-               (arg expr)))
-     (lambda ((binding symbol)
+               (args (vector expr))))
+     (lambda ((bindings (vector symbol))
               (body expr)))
      (poly-let ((binding symbol)
                 (scheme type-scheme :may-init-unbound t)
@@ -55,9 +50,9 @@
 ;; this method is superseded by those below, so each
 ;; `RECURSE-ON-SLOTS' below must also list `TYPE'
 (subst:recurse-on-slots funcall
-  type function arg)
+  type function args)
 (subst:recurse-on-slots lambda
-  type binding body)
+  type bindings body)
 (subst:recurse-on-slots poly-let
   type scheme initform body)
 (subst:recurse-on-slots if
@@ -91,24 +86,21 @@
   "transform (funcall a b c) into (funcall (funcall a b) c)
 
 TODO: handle the edge case of invoking a function on no arguments by transforming into an invocation of one empty argument"
-  (flet ((reduce-funcall (function arg)
-           (make-instance 'funcall
-                          :function function
-                          :arg arg)))
-    (reduce #'reduce-funcall (mapcar #'parse (syntax:funcall-args funcall))
-            :initial-value (parse (syntax:funcall-function funcall)))))
+  (make-instance 'funcall
+                 :function (parse (syntax:funcall-function funcall))
+                 :args (make-array (length (syntax:funcall-args funcall))
+                                   :element-type 'expr
+                                   :initial-contents (mapcar #'parse (syntax:funcall-args funcall)))))
 
 (defmethod parse ((lambda syntax:lambda))
   "transform (lambda (a b) (c d)) into (lambda a (lambda b (progn c d)))
 
 TODO: correctly handle the edge case where (lambda-bindings lambda) is nil by transforming into a function of one empty argument"
-  (flet ((reduce-lambda (binding body)
-           (make-instance 'lambda
-                          :binding binding
-                          :body body)))
-    (reduce #'reduce-lambda (syntax:lambda-bindings lambda)
-            :from-end t
-            :initial-value (transform-implicit-progn (syntax:lambda-body lambda)))))
+  (make-instance 'lambda
+                 :bindings (make-array (length (syntax:lambda-bindings lambda))
+                                       :element-type 'symbol
+                                       :initial-contents (syntax:lambda-bindings lambda))
+                 :body (transform-implicit-progn (syntax:lambda-body lambda))))
 
 (declaim (ftype (function (syntax:definition expr) (values expr &optional))
                 let-from-definition))

@@ -26,11 +26,6 @@
 (deftype constraints ()
   '(association-list type type))
 
-(declaim (ftype (function (type type constraints) constraints)
-                constraint-acons))
-(defun constraint-acons (lhs rhs tail)
-  (acons lhs rhs tail))
-
 (declaim (ftype (function (constraint) type)
                 constraint-lhs))
 
@@ -54,41 +49,53 @@ CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to
 (defmethod infer ((expr funcall) type-env)
   (multiple-value-bind (func-node func-type func-constraints)
       (infer (funcall-function expr) type-env)
-    (multiple-value-bind (arg-node arg-type arg-constraints)
-        (infer (funcall-arg expr) type-env)
-      (let* ((return-type (new-type-variable))
+    (iter
+      (for arg-expr in-vector (funcall-args expr))
+      (for (values arg-node arg-type arg-constraint) = (infer arg-expr type-env))
+      (collect arg-node into arg-nodes result-type (vector expr))
+      (collect arg-type into arg-types result-type (vector type))
+      (unioning arg-constraint into arg-constraints)
+      (finally
+       (let* ((return-type (new-type-variable))
              (arrow-type (make-instance '->
-                                        :input arg-type
+                                        :inputs arg-types
                                         :output return-type))
              (funcall-constraints (acons arrow-type func-type ()))
              (all-constraints (append funcall-constraints func-constraints arg-constraints))
              (new-node (make-instance 'funcall
                                       :type return-type
                                       :function func-node
-                                      :arg arg-node)))
-        (values new-node
-                return-type
-                all-constraints)))))
+                                      :args arg-nodes)))
+         (return (values new-node
+                         return-type
+                         all-constraints)))))))
+
+(defun make-constant-scheme (body)
+  (make-instance 'type-scheme
+                 :bindings ()
+                 :body body))
 
 (defmethod infer ((expr lambda) type-env)
-  (let* ((binding (lambda-binding expr))
-         (arg-type (new-type-variable binding))
-         (scheme (make-instance 'type-scheme
-                                :bindings ()
-                                :body arg-type))
-         (function-env (acons binding scheme type-env)))
-    (multiple-value-bind (body return-type constraints)
+  (iter
+    (with function-env = type-env)
+    (for binding in-vector (lambda-bindings expr))
+    (for arg-type = (new-type-variable binding))
+    (for scheme = (make-constant-scheme arg-type))
+    (collect arg-type into arg-types result-type (vector type))
+    (push (cons binding scheme) function-env)
+    (finally
+     (multiple-value-bind (body return-type constraints)
         (infer (lambda-body expr) function-env)
       (let* ((arrow-type (make-instance '->
-                                       :input arg-type
+                                       :inputs arg-types
                                        :output return-type))
              (new-node (make-instance 'lambda
                                       :type arrow-type
-                                      :binding binding
+                                      :bindings (lambda-bindings expr)
                                       :body body)))
-        (values new-node
-                arrow-type
-                constraints)))))
+        (return (values new-node
+                        arrow-type
+                        constraints)))))))
 
 (defmethod infer ((expr poly-let) type-env)
   (multiple-value-bind (init-expr value-type value-constraints)
