@@ -27,11 +27,11 @@
 
 (|:| #'find-local (-> (symbol procedure) (optional local)))
 (defun find-local (name procedure)
-  (find name (procedure-locals procedure) :key #'place-name))
+  (find name (procedure-locals procedure) :key #'place-name :from-end t))
 
 (|:| #'find-arg (-> (symbol procedure) (optional argument)))
 (defun find-arg (name procedure)
-  (find name (procedure-arguments procedure) :key #'place-name))
+  (find name (procedure-arguments procedure) :key #'place-name :from-end t))
 
 (|:| #'make-empty-procedure (-> (symbol sequence ir1-type:->) procedure))
 (defun make-empty-procedure (name arguments ->-type)
