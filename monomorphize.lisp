@@ -178,7 +178,9 @@ defines a method for the class `FUNCALL' which recurses on its slots
             (return-type (expr-type body)))
        (return
          (make-instance 'lambda
-                        :type return-type
+                        :type (make-instance '->
+                                             :inputs (->-inputs (expr-type lambda))
+                                             :output return-type)
                         :bindings (lambda-bindings lambda)
                         :body body))))))
 
