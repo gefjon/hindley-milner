@@ -9,10 +9,14 @@
   '(association-list type-variable type))
 
 (defun apply-substitution (substitution target)
-  (iter (with tree = target)
-    (for (old . new) in substitution)
-    (setf tree (subst new old tree))
-    (finally (return tree))))
+  (if substitution
+      (let* ((this-subst (first substitution))
+             (old (car this-subst))
+             (new (cdr this-subst))
+             (rest-subst (subst new old (rest substitution)))
+             (new-tree (subst new old target)))
+        (apply-substitution rest-subst new-tree))
+      target))
 
 (declaim (ftype (function (type-scheme) (values type &optional))
                 instantiate))
