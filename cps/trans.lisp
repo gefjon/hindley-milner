@@ -24,19 +24,19 @@
   '(association-list variable ir1:expr))
 
 (deftype lexenv ()
-  '(association-list symbol variable))
+  '(proper-list variable))
 
 (|:| #'find-variable (-> (symbol lexenv) variable))
 (defun find-variable (name lexenv)
-  (cdr (or (assoc name lexenv)
-           (error "undefined variable ~s" name))))
+  (or (find name lexenv :test #'eq :key #'variable-name)
+      (error "undefined variable ~s" name)))
 
 (|:| #'compute-intermediate-terms (-> (intermediate-terms expr lexenv) expr))
 (defun compute-intermediate-terms (intermediate-terms body lexenv)
   (iter
     (with expr = body)
     (for (var . initform) in intermediate-terms)
-    (setf expr (transform-binding initform var body :lexenv lexenv))
+    (setf expr (transform-binding initform var expr :lexenv lexenv))
     (finally (return expr))))
 
 (defgeneric transform-type (type)
@@ -138,7 +138,7 @@ terms that must be computed prior to the call."
          (var (make-instance 'variable
                              :name var-name
                              :type var-type))
-         (bound-env (acons var-name var lexenv))
+         (bound-env (cons var lexenv))
          (body (transform-to-expr (monomorphize:mono-let-body expr)
                                   :current-continuation current-continuation
                                   :lexenv bound-env))
@@ -161,7 +161,7 @@ terms that must be computed prior to the call."
                                 :lexenv lexenv))
            (else-expr
              (transform-to-expr (ir1:if-else-case expr)
-                                :current-conflict current-continuation
+                                :current-continuation current-continuation
                                 :lexenv lexenv))
            (if-expr
              (make-instance 'if
@@ -240,16 +240,14 @@ terms that must be computed prior to the call."
   (iter
     (with env = enclosing-env)
     (for arg in-vector arglist)
-    (setf env (acons (variable-name arg)
-                     arg
-                     env))
+    (setf env (cons arg env))
     (finally (return env))))
 
 (defmethod transform-binding ((initform ir1:lambda) var body
                               &key
                                 lexenv
                               &allow-other-keys)
-  (let* ((continuation-arg (make-continuation-arg))
+  (let* ((continuation-arg (make-continuation-arg 'return))
          (args (lambda-arg-vars initform))
          (fenv (augment-lexenv-for-func lexenv args))
          (fbody (transform-to-expr (ir1:lambda-body initform)
