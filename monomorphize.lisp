@@ -154,10 +154,15 @@ defines a method for the class `FUNCALL' which recurses on its slots
                 (monomorphize thing ,lexenv)))
          ,@body))))
 
+(define-monomorphize vector
+  (iter
+    (for expr in-vector vector)
+    (collect (recurse expr) result-type (vector expr))))
+
 (define-monomorphize funcall
   (let* ((function (recurse (funcall-function funcall)))
          (return-type (->-output (expr-type function)))
-         (args (map '(vector expr) #'recurse (funcall-args funcall))))
+         (args (recurse (funcall-args funcall))))
     (make-instance 'funcall
                    :type return-type
                    :function (recurse (funcall-function funcall))
@@ -211,12 +216,11 @@ defines a method for the class `FUNCALL' which recurses on its slots
                    :then-case then-case
                    :else-case else-case)))
 
-(define-monomorphize binop
-  (make-instance 'binop
-                 :type (expr-type binop)
-                 :op (binop-op binop)
-                 :lhs (recurse (binop-lhs binop))
-                 :rhs (recurse (binop-rhs binop))))
+(define-monomorphize primop
+  (make-instance 'primop
+                 :type (expr-type primop)
+                 :op (primop-op primop)
+                 :args (recurse (primop-args primop))))
 
 (define-monomorphize prog2
   (let* ((side-effect (recurse (prog2-side-effect prog2)))

@@ -2,6 +2,8 @@
     (:mix
      :hindley-milner/prologue
      :cl)
+    (:import-from :hindley-milner/primop
+     :operator)
   (:shadowing-import-from :gefjon-utils
    :defclass)
   (:shadow
@@ -23,7 +25,7 @@
   :void :boolean :fixnum :function :continuation)
 
 (defenum primitive ()
-      ((binop ((op syntax:operator)))
+      ((binop ((op operator)))
        (const ((type type)
                (value t)))))
 

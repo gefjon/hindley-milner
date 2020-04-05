@@ -1,11 +1,20 @@
 (uiop:define-package :hindley-milner/ir1
-    (:mix :hindley-milner/ir1/type :hindley-milner/prologue :trivial-types :cl)
+  (:mix
+   :hindley-milner/ir1/type
+   :hindley-milner/prologue
+   :trivial-types
+   :iterate
+   :cl)
+  (:import-from :uiop
+   :emptyp)
   (:nicknames :ir1)
   (:import-from :hindley-milner/subst) ;; for `RECURSE-ON-SLOTS'
   (:import-from :hindley-milner/syntax
                 :literal :clause)
-  (:shadow :funcall :lambda :quote :if :binop :prog2 :variable)
+  (:shadow :funcall :lambda :quote :if :prog2 :variable)
   (:reexport :hindley-milner/ir1/type)
+  (:import-from :hindley-milner/primop
+   :operator)
   (:export
    :expr :expr-type
    :variable :variable-name
@@ -14,7 +23,7 @@
    :lambda  :lambda-bindings :lambda-body
    :poly-let :poly-let-binding :poly-let-scheme :poly-let-initform :poly-let-body
    :if :if-predicate :if-then-case :if-else-case
-   :binop :binop-op :binop-lhs :binop-rhs
+   :primop :primop-op :primop-args
    :prog2 :prog2-side-effect :prog2-return-value
 
    :parse :parse-program))
@@ -39,9 +48,8 @@
      (if ((predicate expr)
           (then-case expr)
           (else-case expr)))
-     (binop ((op syntax:operator)
-             (lhs expr)
-             (rhs expr)))
+     (primop ((op operator)
+              (args (vector expr))))
      (prog2 ((side-effect expr)
              (return-value expr)))))
 
@@ -57,20 +65,20 @@
   type scheme initform body)
 (subst:recurse-on-slots if
   type predicate then-case else-case)
-(subst:recurse-on-slots binop
-  type lhs rhs)
+(subst:recurse-on-slots primop
+  type args)
 (subst:recurse-on-slots prog2
   type side-effect return-value)
 
 (defgeneric parse (clause)
   (:documentation "transform a `SYNTAX:CLAUSE' into an `IR1:CLAUSE'"))
 
-(declaim (ftype (function ((proper-list clause)) (values expr &optional))
+(declaim (ftype (function ((vector clause)) (values expr &optional))
                 transform-implicit-progn))
 (defun transform-implicit-progn (progn)
-  (cond ((null progn) (error "empty implicit progn"))
+  (cond ((emptyp progn) (error "empty implicit progn"))
         ;; if there's only one clause, you can skip consing the progn
-        ((null (rest progn)) (parse (first progn)))
+        ((= (length progn) 1) (parse (aref progn 0)))
         (:otherwise
          ;; an equivalent implementation is:
          ;;
@@ -82,15 +90,18 @@
                                  :return-value return-value)))
            (reduce #'reduce-prog2 progn :key #'parse)))))
 
+(defmethod parse ((arg-vec vector))
+  (iter
+    (for arg in-vector arg-vec)
+    (collect (parse arg) result-type (vector expr))))
+
 (defmethod parse ((funcall syntax:funcall))
   "transform (funcall a b c) into (funcall (funcall a b) c)
 
 TODO: handle the edge case of invoking a function on no arguments by transforming into an invocation of one empty argument"
   (make-instance 'funcall
                  :function (parse (syntax:funcall-function funcall))
-                 :args (make-array (length (syntax:funcall-args funcall))
-                                   :element-type 'expr
-                                   :initial-contents (mapcar #'parse (syntax:funcall-args funcall)))))
+                 :args (parse (syntax:funcall-args funcall))))
 
 (defmethod parse ((lambda syntax:lambda))
   "transform (lambda (a b) (c d)) into (lambda a (lambda b (progn c d)))
@@ -128,12 +139,11 @@ edge case: parses (let () a b) into (progn a b)"
                  :then-case (parse (syntax:if-then-case if))
                  :else-case (parse (syntax:if-else-case if))))
 
-(defmethod parse ((binop syntax:binop))
+(defmethod parse ((primop syntax:primop))
   "boring. recurse on `PARSE'"
-  (make-instance 'binop
-                 :op (parse (syntax:binop-op binop))
-                 :lhs (parse (syntax:binop-lhs binop))
-                 :rhs (parse (syntax:binop-rhs binop))))
+  (make-instance 'primop
+                 :op (syntax:primop-op primop)
+                 :args (parse (syntax:primop-args primop))))
 
 (defmethod parse ((variable syntax:variable))
   (make-instance 'variable

@@ -93,14 +93,14 @@ to preserve EQ-ness of variables"))
 (|:| #'funcall-vars-and-intermediate-terms
      (-> (ir1:funcall lexenv)
          (values (vector variable) intermediate-terms &optional)))
-(defun funcall-vars-and-intermediate-terms (ir1-funcall lexenv)
+(defun arg-vec-vars-and-terms (arg-vec lexenv)
   "returns (VALUES ARG-VARS INTERMEDIATE-TERMS)
 
 where ARG-VARS is a (VECTOR VARIABLE) suitable for a `CPS:FUNCALL',
 and INTERMEDIATE-TERMS is an (ASSOCIATION-LIST VARIABLE IR1:EXPR) of
 terms that must be computed prior to the call."
   (iter
-    (for arg in-vector (ir1:funcall-args ir1-funcall))
+    (for arg in-vector arg-vec)
     (for (values arg-var compute-arg) = (transform-to-var arg :lexenv lexenv))
     (collect arg-var into arg-vars result-type (vector variable))
     (appending compute-arg into intermediate-terms)
@@ -112,7 +112,7 @@ terms that must be computed prior to the call."
                                 lexenv
                               &allow-other-keys)
   (multiple-value-bind (arg-vars arg-terms)
-      (funcall-vars-and-intermediate-terms expr lexenv)
+      (arg-vec-vars-and-terms (ir1:funcall-args expr) lexenv)
     (multiple-value-bind (func-var func-terms)
         (transform-to-var (ir1:funcall-function expr) :lexenv lexenv)
       (let* ((apply-expr (make-instance 'apply
@@ -267,26 +267,18 @@ terms that must be computed prior to the call."
                  :value (ir1:quote-it initform)
                  :in body))
 
-(defmethod transform-binding ((initform ir1:binop) var body
+(defmethod transform-binding ((initform ir1:primop) var body
                               &key lexenv &allow-other-keys)
-  (multiple-value-bind (lhs-var lhs-terms)
-      (transform-to-var (ir1:binop-lhs initform) :lexenv lexenv)
-    (multiple-value-bind (rhs-var rhs-terms)
-        (transform-to-var (ir1:binop-rhs initform) :lexenv lexenv)
-      (let* ((let-expr (make-instance 'let
-                                      :var var
-                                      :prim-op (ir1:binop-op initform)
-                                      :args (specialized-vector variable
-                                                                lhs-var
-                                                                rhs-var)
-                                      :in body))
-             (compute-rhs (compute-intermediate-terms rhs-terms
-                                                      let-expr
-                                                      lexenv))
-             (compute-lhs (compute-intermediate-terms lhs-terms
-                                                      compute-rhs
-                                                      lexenv)))
-        compute-lhs))))
+  (multiple-value-bind (arg-vars arg-terms)
+      (arg-vec-vars-and-terms (ir1:primop-args initform) lexenv)
+    (let* ((let-expr (make-instance 'let
+                                    :var var
+                                    :prim-op (ir1:primop-op initform)
+                                    :args arg-vars
+                                    :in body)))
+      (compute-intermediate-terms arg-terms
+                                  let-expr
+                                  lexenv))))
 
 (defmethod transform-binding ((initform ir1:expr) var body
                               &key
