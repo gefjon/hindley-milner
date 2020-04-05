@@ -2,7 +2,6 @@
   (:mix
    :hindley-milner/ir1/type
    :hindley-milner/prologue
-   :trivial-types
    :iterate
    :cl)
   (:import-from :uiop

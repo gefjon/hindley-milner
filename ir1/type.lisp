@@ -1,8 +1,10 @@
 (uiop:define-package :hindley-milner/ir1/type
-    (:mix :hindley-milner/subst :hindley-milner/prologue :trivial-types :cl)
+  (:mix :hindley-milner/subst :hindley-milner/prologue :cl)
   (:nicknames :ir1-type)
   (:shadowing-import-from :gefjon-utils
    :defclass)
+  (:import-from :trivial-types
+   :proper-list :association-list)
   (:shadow :type)
   (:export
 
@@ -43,8 +45,8 @@
                    :name (gensym name-string))))
 
 (defclass type-scheme
-  ((bindings (proper-list type-variable))
-   (body type)))
+    ((bindings (proper-list type-variable))
+     (body type)))
 
 (subst:recurse-on-slots type-scheme
   bindings body)

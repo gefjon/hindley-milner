@@ -3,9 +3,10 @@
   (:mix
    :hindley-milner/ir1
    :hindley-milner/typecheck/substitute
-   :trivial-types
    :iterate
    :cl)
+  (:import-from :trivial-types
+   :association-list)
   (:import-from :hindley-milner/ir1)
   (:export :infer :constraint :constraints :constraint-lhs :constraint-rhs))
 (cl:in-package :hindley-milner/typecheck/infer)

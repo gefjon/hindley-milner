@@ -3,8 +3,9 @@
      :hindley-milner/cps/expr
      :hindley-milner/prologue
      :iterate
-     :trivial-types
      :cl)
+    (:import-from :trivial-types
+     :proper-list :association-list)
   (:import-from :alexandria
    :make-gensym)
   (:import-from :gefjon-utils

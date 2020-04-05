@@ -1,11 +1,13 @@
 ;;;; stuff that i expect to be useful in most or all files
 
 (uiop:define-package :hindley-milner/prologue
-    (:use :trivial-types :cl)
+  (:use :cl)
   (:nicknames :prologue)
   (:export :defenum :extend-enum :def-c-enum :hash-map-of)
   (:shadowing-import-from :gefjon-utils
    :defclass :symbol-concatenate)
+  (:import-from :trivial-types
+   :tuple)
   (:import-from :generic-cl :hash-map))
 (cl:in-package :hindley-milner/prologue)
 
