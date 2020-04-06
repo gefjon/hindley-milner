@@ -62,9 +62,13 @@ e.g. (defparse funcall (function &rest args)
 
 (defmethod parse-list ((head symbol) &rest args)
   "fallthrough method for named funcalls, so that (foo bar baz) parses as (funcall foo bar baz)"
-  (make-instance 'funcall
-                 :function (parse head)
-                 :args (parse-body args)))
+  (cl:if (typep head 'primop:operator)
+         (make-instance 'primop
+                        :op head
+                        :args (parse-body args))
+         (make-instance 'funcall
+                        :function (parse head)
+                        :args (parse-body args))))
 
 (defparse funcall (function &rest args)
   (make-instance 'funcall
@@ -95,15 +99,3 @@ e.g. (defparse funcall (function &rest args)
                  :predicate (parse predicate)
                  :then-case (parse then-clause)
                  :else-case (parse else-clause)))
-
-(defmacro def-binop-parse (op)
-  (let* ((op (get-hm-symbol op)))
-    `(defparse ,op (lhs rhs)
-       (make-instance 'primop
-                      :op ',op
-                      :args (parse-body (list lhs rhs))))))
-
-(def-binop-parse +)
-(def-binop-parse -)
-(def-binop-parse *)
-(def-binop-parse /)
