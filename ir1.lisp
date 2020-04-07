@@ -79,10 +79,6 @@
         ;; if there's only one clause, you can skip consing the progn
         ((= (length progn) 1) (parse (aref progn 0)))
         (:otherwise
-         ;; an equivalent implementation is:
-         ;;
-         ;; (make-progn (subseq progn 0 (1- (length progn)))
-         ;;             (car (last progn)))
          (flet ((reduce-prog2 (side-effect return-value)
                   (make-instance 'prog2
                                  :side-effect side-effect
@@ -95,17 +91,11 @@
     (collect (parse arg) result-type (vector expr))))
 
 (defmethod parse ((funcall syntax:funcall))
-  "transform (funcall a b c) into (funcall (funcall a b) c)
-
-TODO: handle the edge case of invoking a function on no arguments by transforming into an invocation of one empty argument"
   (make-instance 'funcall
                  :function (parse (syntax:funcall-function funcall))
                  :args (parse (syntax:funcall-args funcall))))
 
 (defmethod parse ((lambda syntax:lambda))
-  "transform (lambda (a b) (c d)) into (lambda a (lambda b (progn c d)))
-
-TODO: correctly handle the edge case where (lambda-bindings lambda) is nil by transforming into a function of one empty argument"
   (make-instance 'lambda
                  :bindings (make-array (length (syntax:lambda-bindings lambda))
                                        :element-type 'symbol
@@ -124,9 +114,7 @@ passed to `REDUCE' in parsers for `LET' and `SYNTAX:PROGRAM'"
                  :body body))
 
 (defmethod parse ((let syntax:let))
-  "transform (let ((a b) (c d)) e f) into (let a b (let c d (progn e f)))
-
-edge case: parses (let () a b) into (progn a b)"
+  "transform (let ((a b) (c d)) e f) into (let a b (let c d (progn e f)))"
   (reduce #'let-from-definition (syntax:let-bindings let)
           :from-end t
           :initial-value (transform-implicit-progn (syntax:let-body let))))
