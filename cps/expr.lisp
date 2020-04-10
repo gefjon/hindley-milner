@@ -9,7 +9,7 @@
   (:shadow
    :type :variable :let :if :apply :throw :prog2)
   (:export
-   :type :primitive
+   :type
    :variable :variable-name :variable-type
    :expr
    :let :let-var :let-prim-op :let-args :let-in
@@ -18,16 +18,11 @@
    :func :func-name :func-arglist :func-continuation-arg :func-body :func-in
    :if :if-predicate :if-then-clause :if-else-clause
    :apply :apply-func :apply-args :apply-continuation
-   :throw :throw-cont :throw-args))
+   :throw :throw-cont :throw-arg))
 (cl:in-package :hindley-milner/cps/expr)
 
 (def-c-enum type
-  :void :boolean :fixnum :function :continuation)
-
-(defenum primitive ()
-      ((binop ((op operator)))
-       (const ((type type)
-               (value t)))))
+  :void :boolean :fixnum :function :continuation :closure-env)
 
 (defclass variable
     ((name symbol)
@@ -35,7 +30,7 @@
 
 (defenum expr ()
   ((let ((var variable)
-         (prim-op primitive)
+         (prim-op operator)
          (args (vector variable))
          (in expr)))
    (const ((name variable)
@@ -43,11 +38,15 @@
            (in expr)))
    (cont ((name variable)
           (arg variable)
+          (closure-arg variable :may-init-unbound t)
+          (closes-over (vector variable) :may-init-unbound t)
           (body expr)
           (in expr)))
    (func ((name variable)
           (arglist (vector variable))
+          (closure-arg variable :may-init-unbound t)
           (continuation-arg variable)
+          (closes-over (vector variable) :may-init-unbound t)
           (body expr)
           (in expr)))
    (if ((predicate variable)

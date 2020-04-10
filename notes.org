@@ -7,7 +7,8 @@
    to emit.
 ** investigate potential bugs in current function-naming scheme
 *** TODO what happens if you bind two different lambdas to the same let-place with an IF
-** TODO closures
+** DONE closures
+   CLOSED: [2020-04-09 Thu 19:30]
    during the ir2 transform, whenever a function tries to access a var that
    isn't found in its arglist or locals (before searching the globals!), find
    it in the enclosing env and push it into a list of closure vars for that
