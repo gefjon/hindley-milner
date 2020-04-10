@@ -1,0 +1,6 @@
+;;;; -*- mode: lisp; -*-
+
+(def closure
+    (let ((x 0))
+      (lambda () x)))
+(closure)
