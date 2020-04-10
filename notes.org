@@ -35,3 +35,11 @@
    introduce another form, ~delimit~, with the nesting rule that each ~block~
    is nested within a ~delimit~, and each ~return-from~ is nested within a
    ~block~.
+** gc
+   every heap-allocated object, incl. stack frames, has a vtable. the first
+   method in every vtable is ~gc~. this method has compile-time knowledge of
+   all pointers contained in the object.
+** heap-allocated stack frames
+   every frame has to hold a return address (duh) and a (pointer to) the
+   caller's stack frame. i guess i should call these closure envs instead of
+   stack frames.
