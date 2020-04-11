@@ -15,6 +15,9 @@
    function. add an extra argument to procedures for closures, i.e. an
    env. when calling a function that takes closure arguments, first construct
    the closure env, then eval and pass its regular parameters.
+** DONE make closure var accesses local to their usage
+   CLOSED: [2020-04-11 Sat 16:57]
+   instead of having every closure begin by accessing every var it closes over
 * musings of mine
   i don't claim that any of these ideas are original, but typing them out helps
   me to understand them.
