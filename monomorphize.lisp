@@ -6,8 +6,6 @@
    :iterate
    :trivial-types
    :cl)
-  (:shadowing-import-from :gefjon-utils
-   :defclass)
   (:shadowing-import-from :generic-cl
    :equalp :hash :get :hash-map :make-hash-map :ensure-get)
   (:import-from :hindley-milner/typecheck/unify
@@ -29,12 +27,12 @@
                          (initform expr)
                          (body expr)))))
 
-(defmethod equalp ((lhs ->) (rhs ->))
-  (and (equalp (->-inputs lhs) (->-inputs rhs))
-       (equalp (->-output lhs) (->-output rhs))))
-(defmethod hash ((obj ->))
-  (logxor (hash (->-inputs obj))
-          (hash (->-output obj))))
+(defmethod equalp ((lhs arrow) (rhs arrow))
+  (and (equalp (arrow-inputs lhs) (arrow-inputs rhs))
+       (equalp (arrow-output lhs) (arrow-output rhs))))
+(defmethod hash ((obj arrow))
+  (logxor (hash (arrow-inputs obj))
+          (hash (arrow-output obj))))
 
 (defmethod equalp ((lhs type-primitive) (rhs type-primitive))
   (eq (type-primitive-name lhs) (type-primitive-name rhs)))
@@ -46,7 +44,7 @@
 (defmethod hash ((obj type-variable))
   (hash (type-variable-name obj)))
 
-(defclass lexenv
+(define-class lexenv
   ((polymorphic-values (hash-map-of symbol expr)
                        :initform (make-hash-map :test #'eq))
    (monomorphic-values (association-list symbol expr)
@@ -161,7 +159,7 @@ defines a method for the class `FUNCALL' which recurses on its slots
 
 (define-monomorphize funcall
   (let* ((function (recurse (funcall-function funcall)))
-         (return-type (->-output (expr-type function)))
+         (return-type (arrow-output (expr-type function)))
          (args (recurse (funcall-args funcall))))
     (make-instance 'funcall
                    :type return-type
@@ -173,7 +171,7 @@ defines a method for the class `FUNCALL' which recurses on its slots
     (with local-env = (make-instance 'lexenv
                                      :parent enclosing-env))
     (for bound-name in-vector (lambda-bindings lambda))
-    (for bound-type in-vector (->-inputs (expr-type lambda)))
+    (for bound-type in-vector (arrow-inputs (expr-type lambda)))
     (insert-into-existing-monomorphizations-map local-env
                                                 bound-name
                                                 bound-type
@@ -183,8 +181,8 @@ defines a method for the class `FUNCALL' which recurses on its slots
             (return-type (expr-type body)))
        (return
          (make-instance 'lambda
-                        :type (make-instance '->
-                                             :inputs (->-inputs (expr-type lambda))
+                        :type (make-instance 'arrow
+                                             :inputs (arrow-inputs (expr-type lambda))
                                              :output return-type)
                         :bindings (lambda-bindings lambda)
                         :body body))))))

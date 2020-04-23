@@ -7,8 +7,6 @@
    :named-readtables
    :cl)
   (:import-from :alexandria :with-gensyms)
-  (:shadowing-import-from :gefjon-utils
-   :defclass :make-adjustable-vector)
   (:import-from :hindley-milner/syntax/package)
   (:import-from :hindley-milner/primop
    :operator)
@@ -23,7 +21,7 @@
    :read-program-from-file))
 (cl:in-package :hindley-milner/syntax)
 
-(defclass program
+(define-class program
   ((definitions (vector definition))
    (entry clause)))
 

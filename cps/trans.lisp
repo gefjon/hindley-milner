@@ -8,8 +8,6 @@
      :proper-list :association-list)
   (:import-from :alexandria
    :make-gensym)
-  (:import-from :gefjon-utils
-   :adjustable-vector :make-adjustable-vector :specialized-vector :|:| :->)
   (:import-from :hindley-milner/ir1)
   (:import-from :hindley-milner/monomorphize)
   (:export :cps-transform :*exit-continuation*))
@@ -76,7 +74,7 @@ to preserve EQ-ness of variables"))
         (fixnum :fixnum)
         (null :void)))
 
-(defmethod transform-type ((type ir1:->))
+(defmethod transform-type ((type ir1:arrow))
   (declare (ignorable type))
   :function)
 
@@ -188,10 +186,12 @@ terms that must be computed prior to the call."
                                     :type (transform-type
                                            (ir1:expr-type
                                             (ir1:prog2-side-effect expr)))))
-         (ignore-cont (make-instance 'cont
-                                     :name ignore-cont-name
-                                     :arg ignore-var
-                                     :body ret-expr
+         (ignore-cont-defn (make-instance 'contdefn
+                                          :name ignore-cont-name
+                                          :arg ignore-var
+                                          :body ret-expr))
+         (ignore-cont (make-instance 'bind
+                                     :defn ignore-cont-defn
                                      :in side-effect-expr)))
     ignore-cont))
 
@@ -230,7 +230,7 @@ terms that must be computed prior to the call."
 (defun lambda-arg-vars (ir1-lambda)
   (iter
     (for arg-name in-vector (ir1:lambda-bindings ir1-lambda))
-    (for arg-type in-vector (ir1:->-inputs (ir1:expr-type ir1-lambda)))
+    (for arg-type in-vector (ir1:arrow-inputs (ir1:expr-type ir1-lambda)))
     (collect (make-instance 'variable
                             :name arg-name
                             :type (transform-type arg-type))
@@ -253,20 +253,24 @@ terms that must be computed prior to the call."
          (fenv (augment-lexenv-for-func lexenv args))
          (fbody (transform-to-expr (ir1:lambda-body initform)
                                    :current-continuation continuation-arg
-                                   :lexenv fenv)))
-    (make-instance 'func
-                   :name var
-                   :arglist args
-                   :continuation-arg continuation-arg
-                   :body fbody
+                                   :lexenv fenv))
+         (fdefn (make-instance 'fdefn
+                               :name var
+                               :arglist args
+                               :continuation-arg continuation-arg
+                               :body fbody)))
+    (make-instance 'bind
+                   :defn fdefn
                    :in body)))
 
 (defmethod transform-binding ((initform ir1:quote) var body
                               &key &allow-other-keys)
-  (make-instance 'const
-                 :name var
-                 :value (ir1:quote-it initform)
-                 :in body))
+  (let* ((constdefn (make-instance 'constdefn
+                                   :name var
+                                   :value (ir1:quote-it initform))))
+    (make-instance 'bind
+                   :defn constdefn
+                   :in body)))
 
 (defmethod transform-binding ((initform ir1:primop) var body
                               &key lexenv &allow-other-keys)
@@ -289,12 +293,13 @@ terms that must be computed prior to the call."
          (expr (transform-to-expr initform
                                   :lexenv lexenv
                                   :current-continuation cont-name))
-         (cont-expr (make-instance 'cont
+         (cont-defn (make-instance 'contdefn
                                    :name cont-name
                                    :arg var
-                                   :body body
-                                   :in expr)))
-    cont-expr))
+                                   :body body)))
+    (make-instance 'bind
+                   :defn cont-defn
+                   :in expr)))
 
 (defvar *exit-continuation* (make-instance 'variable
                                            :name 'exit

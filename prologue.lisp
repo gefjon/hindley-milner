@@ -3,12 +3,23 @@
 (uiop:define-package :hindley-milner/prologue
   (:use :cl)
   (:nicknames :prologue)
-  (:export :defenum :extend-enum :def-c-enum :hash-map-of)
-  (:shadowing-import-from :gefjon-utils
-   :defclass :symbol-concatenate)
+  (:import-from :gefjon-utils
+   :symbol-concatenate
+   :define-class
+   :adjustable-vector :make-adjustable-vector :specialized-vector
+   :shallow-copy
+   :|:| :->)
   (:import-from :trivial-types
    :tuple)
-  (:import-from :generic-cl :hash-map))
+  (:import-from :generic-cl :hash-map)
+  (:export
+   :defenum
+   :extend-enum
+   :def-c-enum
+   :hash-map-of
+
+   ;; reexports from gefjon-utils
+   :define-class :|:| :-> :make-adjustable-vector :adjustable-vector :specialized-vector :shallow-copy))
 (cl:in-package :hindley-milner/prologue)
 
 (defmacro defenum (type-name common-slots variants)
@@ -25,7 +36,7 @@ list of the form (VARIANT-NAME UNIQUE-SLOTS).
 UNIQUE-SLOTS is a list of slot-descriptors, each of which is a list of
 the form (SLOT-NAME SLOT-TYPE `&KEY' INITFORM MAY-INIT-UNBOUND
 ACCESSOR). the `&KEY' args all have sensible defaults."
-  `(progn (defclass ,type-name ,common-slots)
+  `(progn (define-class ,type-name ,common-slots)
           (extend-enum ,type-name ,variants)))
 
 (defmacro extend-enum (enum-name variants)
@@ -34,8 +45,8 @@ ACCESSOR). the `&KEY' args all have sensible defaults."
 this just defines subclasses of ENUM-NAME."
   (flet ((define-variant (variant)
            (destructuring-bind (variant-name unique-slots) variant
-             `(defclass ,variant-name
-                  ,unique-slots
+             `(define-class ,variant-name
+                ,unique-slots
                 :superclasses (,enum-name)))))
     `(progn
        ,@(mapcar #'define-variant variants))))

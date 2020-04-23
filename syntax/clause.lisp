@@ -3,8 +3,6 @@
   (:shadow :variable :quote :funcall :lambda :let :quote :if)
   (:import-from :hindley-milner/primop
    :operator)
-  (:shadowing-import-from :gefjon-utils
-   :defclass)
   (:export
 
    :boolean-literal
@@ -31,7 +29,7 @@
 ;; reader and unchanged by parsing.
 (deftype literal () '(or fixnum boolean))
 
-(defclass definition
+(define-class definition
   ((binding symbol)
    (value clause)))
 

@@ -6,17 +6,19 @@
    :cl)
   (:import-from :hindley-milner/primop
    :make-closure-env :access-closure-env)
-  (:import-from :gefjon-utils
-   :specialized-vector :adjustable-vector :make-adjustable-vector :|:| :-> :shallow-copy)
   (:shadow :sequence)
   (:import-from :alexandria
    :make-gensym)
   (:import-from :trivial-types
    :proper-list)
   (:shadowing-import-from :generic-cl
-   :make-hash-map :ensure-get)
-  (:export :make-closures-explicit))
+   :hash-map :make-hash-map :ensure-get)
+  (:export :make-closures-explicit :access-closure-env :access-closure-env-index))
 (cl:in-package :hindley-milner/closure)
+
+(define-class access-closure-env
+    ((index fixnum))
+  :superclasses (definition))
 
 (deftype closure-env ()
   '(adjustable-vector variable))
@@ -31,24 +33,23 @@
   (declare (ignore element-type))
   'cl:sequence)
 
-(defvar *closure-arg*)
+(|:| *closure-env* closure-env)
 (defvar *closure-env*)
-(defvar *function-closure-vars*)
+(setf (documentation '*closure-env* 'cl:variable)
+      "a `CLOSURE-ENV' which will be filled with variables for the
+      current function to close over.")
 
-(|:| #'closure-var-for-func (-> (variable) variable))
-(defun closure-var-for-func (func-name)
-  (values (ensure-get func-name *function-closure-vars*
-                     (make-instance 'variable
-                                    :name (make-gensym 'closure-env)
-                                    :type :closure-env))))
+(defmacro with-compiler-toplevel-state (&body body)
+  `(let* ((*closure-env* (make-adjustable-vector :element-type variable)))
+     ,@body))
 
 (defgeneric collect-closure-vars (expr &optional local-vars)
-  (:documentation "returns a new `EXPR' that is like `EXPR'
+  (:documentation "returns a new `EXPR' that is like EXPR,
 
-except that any variable not found in `LOCAL-VARS' has been
-added to `CLOSURE-ENV'.
+except that any free variable (i.e. not found in `LOCAL-VARS') has
+been transformed into a closure access and added to `*CLOSURE-ENV*'.
 
-`LOCAL-VARS' should be a cl-style set (i.e. a list of unique elements), and `CLOSURE-ENV' should be an `ADJUSTABLE-VECTOR'"))
+`LOCAL-VARS' should be a cl-style set (i.e. a list of unique elements)"))
 
 (|:| #'already-enclosed-p (-> (variable) boolean))
 (defun already-enclosed-p (var)
@@ -78,33 +79,15 @@ added to `CLOSURE-ENV'.
   (mapc #'add-var vars)
   (values))
 
-(|:| #'look-up-in-closure (-> (expr variable) const))
+(|:| #'look-up-in-closure (-> (expr variable) bind))
 (defun look-up-in-closure (body-expr variable)
-  (let* ((idx-var (make-instance 'variable
-                                 :name (make-gensym 'index)
-                                 :type :fixnum))
-         (access-args (specialized-vector variable
-                                          *closure-arg*
-                                          idx-var))
-         (let-form (make-instance 'let
-                                  :var variable
-                                  :prim-op 'access-closure-env
-                                  :args access-args
-                                  :in body-expr))
-         (index (closure-env-index variable))
-         (const-form (make-instance 'const
-                                    :name idx-var
-                                    :value index
-                                    :in let-form)))
-    const-form))
-
-(|:| #'look-up-all (-> (expr (proper-list variable)) expr))
-(defun look-up-all (body-expr closure-vars)
-  (iter
-    (with body = body-expr)
-    (for var in closure-vars)
-    (setf body (look-up-in-closure body var))
-    (finally (return body))))
+  (let* ((index (closure-env-index variable))
+         (access (make-instance 'access-closure-env
+                                :index index
+                                :name variable)))
+    (make-instance 'bind
+                   :defn access
+                   :in body-expr)))
 
 (|:| #'access-closure-vars (-> (expr
                                 (sequence variable)
@@ -132,66 +115,49 @@ added to `CLOSURE-ENV'.
                                          body-vars))
          (new-let (shallow-copy expr
                                 :in new-body)))
-     (access-closure-vars new-let
-                          (let-args expr)
-                          local-vars)))
+    ;; also note: prior to the closure transform, no let-arg will ever
+    ;; be a fixnum; they will all be variables.
+    (access-closure-vars new-let
+                         (let-args expr)
+                         local-vars)))
 
-(defmethod collect-closure-vars ((expr const) &optional local-vars)
-  (let* ((body-vars (cons (const-name expr) local-vars))
-         (new-body (collect-closure-vars (const-in expr)
-                                         body-vars)))
-    (shallow-copy expr
-                  :in new-body)))
+(|:| #'convert-func-body (-> (function-like-definition
+                              local-vars)
+                             function-like-definition))
+(defun convert-func-body (old-defn inner-locals)
+  (let* ((*closure-env* (adjustable-vector variable))
+         (old-body (function-like-definition-body old-defn))
+         (new-body (collect-closure-vars old-body inner-locals)))
+     (shallow-copy old-defn
+                   :body new-body
+                   :closes-over *closure-env*)))
 
-(|:| #'convert-func-body (-> ((or func cont)
-                              closure-env
-                              local-vars
-                              expr
-                              expr
-                              variable)
-                             let))
-(defun convert-func-body (old-expr inner-env inner-locals old-body new-in func-name)
-  (let* ((*closure-env* inner-env)
-         (*closure-arg* (closure-var-for-func func-name))
-         (new-body (collect-closure-vars old-body inner-locals))
-         (new-func (shallow-copy old-expr
-                                 :closure-arg *closure-arg*
-                                 :body new-body
-                                 :in new-in)))
-    (make-instance 'let
-                   :var *closure-arg*
-                   :prim-op 'make-closure-env
-                   :args inner-env
-                   :in new-func)))
+(defgeneric closurify-defn (defn)
+  (:documentation "returns a new `DEFINITION' that is like DEFN but has been converted to have explicit closure vars."))
 
-(defmethod collect-closure-vars ((expr cont) &optional local-vars)
-  (let* ((new-locals (cons (cont-name expr) local-vars))
-         (new-in (collect-closure-vars (cont-in expr)
+(defmethod collect-closure-vars ((expr bind) &optional local-vars)
+  (let* ((defn (bind-defn expr))
+         (new-locals (cons (definition-name defn) local-vars))
+         (new-in (collect-closure-vars (bind-in expr)
                                        new-locals))
-         (inner-env (make-adjustable-vector :element-type variable))
-         (inner-locals (list (cont-arg expr)))
-         (new-cont (convert-func-body expr
-                                      inner-env
-                                      inner-locals
-                                      (cont-body expr)
-                                      new-in
-                                      (cont-name expr))))
-    (access-closure-vars new-cont inner-env local-vars)))
+         (new-defn (closurify-defn defn))
+         (new-bind (make-instance 'bind
+                                  :defn new-defn
+                                  :in new-in))
+         (new-vars-needed (when (typep new-defn 'function-like-definition)
+                            (function-like-definition-closes-over new-defn))))
+    (access-closure-vars new-bind new-vars-needed local-vars)))
 
-(defmethod collect-closure-vars ((expr func) &optional local-vars)
-  (let* ((new-locals (cons (func-name expr) local-vars))
-         (new-in (collect-closure-vars (func-in expr)
-                                       new-locals))
-         (inner-env (make-adjustable-vector :element-type variable))
-         (inner-locals (cons (func-continuation-arg expr)
-                             (coerce (func-arglist expr) 'list)))
-         (new-func (convert-func-body expr
-                                      inner-env
-                                      inner-locals
-                                      (func-body expr)
-                                      new-in
-                                      (func-name expr))))
-    (access-closure-vars new-func inner-env local-vars)))
+(defmethod closurify-defn ((defn contdefn))
+  (convert-func-body defn (list (contdefn-arg defn))))
+
+(defmethod closurify-defn ((defn fdefn))
+  (convert-func-body defn (cons (fdefn-continuation-arg defn)
+                                (coerce (fdefn-arglist defn) 'list))))
+
+(defmethod closurify-defn ((defn constdefn))
+  defn)
+
 
 (defmethod collect-closure-vars ((expr if) &optional local-vars)
   (let* ((new-then (collect-closure-vars (if-then-clause expr)
@@ -209,27 +175,20 @@ added to `CLOSURE-ENV'.
   (let* ((all-args (concatenate 'list
                                 (list (apply-func expr)
                                       (apply-continuation expr))
-                                (apply-args expr)))
-         (closure-env (closure-var-for-func (apply-func expr)))
-         (new-apply (shallow-copy expr
-                                  :closure-env closure-env)))
-    (access-closure-vars new-apply
+                                (apply-args expr))))
+    (access-closure-vars expr
                          all-args
                          local-vars)))
 
 (defmethod collect-closure-vars ((expr throw) &optional local-vars)
-  (let* ((all-args (list (throw-cont expr) (throw-arg expr)))
-         (closure-env (closure-var-for-func (throw-cont expr)))
-         (new-throw (shallow-copy expr
-                                  :closure-env closure-env)))
-    (access-closure-vars new-throw
+  (let* ((all-args (list (throw-cont expr) (throw-arg expr))))
+    (access-closure-vars expr
                          all-args
                          local-vars)))
 
 (defun make-closures-explicit (program)
-  (let* ((local-vars (list *exit-continuation*))
-         (*closure-env* (make-adjustable-vector :element-type variable))
-         (*function-closure-vars* (make-hash-map :test #'eq))
-         (new-program (collect-closure-vars program local-vars)))
-    (assert (uiop:emptyp *closure-env*))
-    new-program))
+  (with-compiler-toplevel-state
+    (let* ((local-vars (list *exit-continuation*))
+           (new-program (collect-closure-vars program local-vars)))
+      (assert (uiop:emptyp *closure-env*))
+      new-program)))

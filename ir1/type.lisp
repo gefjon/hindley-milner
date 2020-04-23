@@ -1,8 +1,6 @@
 (uiop:define-package :hindley-milner/ir1/type
   (:mix :hindley-milner/subst :hindley-milner/prologue :cl)
   (:nicknames :ir1-type)
-  (:shadowing-import-from :gefjon-utils
-   :defclass)
   (:import-from :trivial-types
    :proper-list :association-list)
   (:shadow :type)
@@ -11,7 +9,7 @@
    :type
    :type-variable :type-variable-name
    :type-primitive :type-primitive-name :*boolean* :*fixnum* :*void*
-   :-> :->-inputs :->-output
+   :arrow :arrow-inputs :arrow-output
    
    :new-type-variable
 
@@ -23,13 +21,13 @@
 (defenum type ()
   ((type-variable ((name symbol)))
    (type-primitive ((name t)))
-   (-> ((inputs (vector type))
-        (output type)))))
+   (arrow ((inputs (vector type))
+           (output type)))))
 
 ;; note that `SUBST' does not recurse into `TYPE-PRIMITIVE', because
 ;; `TYPE-PRIMITIVE-NAME's should not be substituted
 
-(subst:recurse-on-slots ->
+(subst:recurse-on-slots arrow
   inputs output)
 
 (defvar *boolean* (make-instance 'type-primitive :name 'cl:boolean))
@@ -44,7 +42,7 @@
     (make-instance 'type-variable
                    :name (gensym name-string))))
 
-(defclass type-scheme
+(define-class type-scheme
     ((bindings (proper-list type-variable))
      (body type)))
 

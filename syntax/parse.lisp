@@ -78,9 +78,10 @@ e.g. (defparse funcall (function &rest args)
 (defparse lambda (lambda-list &body body)
   (flet ((check-symbol (symbol)
            (unless (typep symbol 'symbol)
-             (error "non-symbol ~s in `LAMBDA-LIST'" symbol))))
+             (error "non-symbol ~s in `LAMBDA-LIST'" symbol))
+           symbol))
     (make-instance 'lambda
-                   :bindings (mapc #'check-symbol lambda-list)
+                   :bindings (map '(vector symbol) #'check-symbol lambda-list)
                    :body (parse-body body))))
 
 (defparse let (bindings &body body)
@@ -91,7 +92,7 @@ e.g. (defparse funcall (function &rest args)
                             :binding symbol
                             :value (parse value)))))
     (make-instance 'let
-                   :bindings (mapcar #'parse-binding bindings)
+                   :bindings (map '(vector definition) #'parse-binding bindings)
                    :body (parse-body body))))
 
 (defparse if (predicate then-clause else-clause)

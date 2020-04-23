@@ -47,9 +47,9 @@
     (for element in-vector within)
     (adjoining element)))
 
-(defmethod free-type-variables ((within ->))
-  (union (free-type-variables (->-inputs within))
-         (free-type-variables (->-output within))))
+(defmethod free-type-variables ((within arrow))
+  (union (free-type-variables (arrow-inputs within))
+         (free-type-variables (arrow-output within))))
 
 ;; this is a named function (rather than a method on
 ;; `FREE-TYPE-VARIABLES') because `TYPE-ENV' names a type rather than

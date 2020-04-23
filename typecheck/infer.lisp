@@ -58,7 +58,7 @@ CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to
       (unioning arg-constraint into arg-constraints)
       (finally
        (let* ((return-type (new-type-variable))
-             (arrow-type (make-instance '->
+             (arrow-type (make-instance 'arrow
                                         :inputs arg-types
                                         :output return-type))
              (funcall-constraints (acons arrow-type func-type ()))
@@ -87,7 +87,7 @@ CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to
     (finally
      (multiple-value-bind (body return-type constraints)
         (infer (lambda-body expr) function-env)
-      (let* ((arrow-type (make-instance '->
+      (let* ((arrow-type (make-instance 'arrow
                                        :inputs arg-types
                                        :output return-type))
              (new-node (make-instance 'lambda

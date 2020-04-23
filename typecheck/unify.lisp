@@ -46,15 +46,15 @@
 (defmethod unify (lhs (rhs type-variable))
   (bind rhs lhs))
 
-(defmethod unify ((lhs ->) (rhs ->))
+(defmethod unify ((lhs arrow) (rhs arrow))
   (iter
-    (for lhs-input in-vector (->-inputs lhs))
-    (for rhs-input in-vector (->-inputs rhs))
+    (for lhs-input in-vector (arrow-inputs lhs))
+    (for rhs-input in-vector (arrow-inputs rhs))
     (collect (cons lhs-input rhs-input) into input-constraints at beginning)
     (finally
      (return
-       (solve (acons (->-output lhs)
-                     (->-output rhs)
+       (solve (acons (arrow-output lhs)
+                     (arrow-output rhs)
                      input-constraints))))))
 
 (defmethod unify ((lhs type-primitive) (rhs type-primitive))
