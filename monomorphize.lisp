@@ -6,8 +6,8 @@
    :iterate
    :trivial-types
    :cl)
-  (:shadowing-import-from :generic-cl
-   :equalp :hash :get :hash-map :make-hash-map :ensure-get)
+  (:import-from :genhash
+   :make-generic-hash-table :hashref :register-test-designator)
   (:import-from :hindley-milner/typecheck/unify
    :unify)
   (:import-from
@@ -20,36 +20,64 @@
    :monomorphize-program))
 (cl:in-package :hindley-milner/monomorphize)
 
-(defmethod equalp ((lhs arrow) (rhs arrow))
-  (and (equalp (arrow-inputs lhs) (arrow-inputs rhs))
-       (equalp (arrow-output lhs) (arrow-output rhs))))
-(defmethod hash ((obj arrow))
-  (logxor (hash (arrow-inputs obj))
-          (hash (arrow-output obj))))
+(defgeneric hash-type (type))
 
-(defmethod equalp ((lhs type-primitive) (rhs type-primitive))
+(defmethod hash-type ((vec vector))
+  (iter
+    (with hash = 0)
+    (for el in-vector vec)
+    (setf hash (logxor hash
+                       (hash-type el)))
+    (finally (return hash))))
+
+(defmethod hash-type ((obj arrow))
+  (logxor (hash-type (arrow-inputs obj))
+          (hash-type (arrow-output obj))))
+
+(defmethod hash-type ((obj type-primitive))
+  (sxhash (type-primitive-name obj)))
+
+(defmethod hash-type ((obj type-variable))
+  (sxhash (type-variable-name obj)))
+
+(defgeneric type-equalp (lhs rhs))
+
+(defmethod type-equalp ((lhs vector) (rhs vector))
+  (iter
+    (for lhs-el in-vector lhs)
+    (for rhs-el in-vector rhs)
+    (unless (type-equalp lhs-el rhs-el)
+      (return nil))
+    (finally (return t))))
+
+(defmethod type-equalp ((lhs arrow) (rhs arrow))
+  (and (type-equalp (arrow-inputs lhs) (arrow-inputs rhs))
+       (type-equalp (arrow-output lhs) (arrow-output rhs))))
+
+(defmethod type-equalp ((lhs type-primitive) (rhs type-primitive))
   (eq (type-primitive-name lhs) (type-primitive-name rhs)))
-(defmethod hash ((obj type-primitive))
-  (hash (type-primitive-name obj)))
 
-(defmethod equalp ((lhs type-variable) (rhs type-variable))
+(defmethod type-equalp ((lhs type-variable) (rhs type-variable))
   (eq (type-variable-name lhs) (type-variable-name rhs)))
-(defmethod hash ((obj type-variable))
-  (hash (type-variable-name obj)))
+
+(defmethod type-equalp (lhs rhs)
+  (equalp lhs rhs))
+
+(register-test-designator 'type-equalp #'hash-type #'type-equalp)
 
 (define-class lexenv
   ((polymorphic-values (hash-map-of symbol expr)
-                       :initform (make-hash-map :test #'eq))
+                       :initform (make-generic-hash-table :test 'eq))
    (monomorphic-values (association-list symbol expr)
                        :initform nil)
    (existing-monomorphizations (hash-map-of symbol (hash-map-of type symbol))
-                               :initform (make-hash-map :test #'eq))
+                               :initform (make-generic-hash-table :test 'eq))
    (parent (or lexenv null)
            :initform nil)))
 
 (|:| #'push-poly-obj (-> (lexenv definition) void))
 (defun push-poly-obj (lexenv def)
-  (setf (get (definition-name def)
+  (setf (hashref (definition-name def)
                  (lexenv-polymorphic-values lexenv))
         (definition-initform def))
   (values))
@@ -68,11 +96,13 @@
 (defun existing-monomorphization-second-level-map (lexenv poly-name)
   (ensure-get poly-name
               (lexenv-existing-monomorphizations lexenv)
-              (make-hash-map :test #'equalp)))
+              (make-generic-hash-table :test 'type-equalp)))
 
 (|:| #'find-existing-monomorphization (-> (lexenv symbol type) (optional symbol)))
 (defun find-existing-monomorphization (lexenv poly-name mono-type)
-  (multiple-value-bind (val present-p) (get mono-type (existing-monomorphization-second-level-map lexenv poly-name))
+  (multiple-value-bind (val present-p)
+      (hashref mono-type
+               (existing-monomorphization-second-level-map lexenv poly-name))
     (cond (present-p val)
           ((lexenv-parent lexenv) (find-existing-monomorphization (lexenv-parent lexenv)
                                                                   poly-name
@@ -81,7 +111,8 @@
 
 (|:| #'insert-into-existing-monomorphizations-map (-> (lexenv symbol type symbol) void))
 (defun insert-into-existing-monomorphizations-map (lexenv poly-name mono-type mono-name)
-  (setf (get mono-type (existing-monomorphization-second-level-map lexenv poly-name))
+  (setf (hashref mono-type
+                 (existing-monomorphization-second-level-map lexenv poly-name))
         mono-name)
   (values))
 
@@ -97,7 +128,8 @@
 
 (|:| #'add-new-monomorphization (-> (lexenv symbol type) symbol))
 (defun add-new-monomorphization (lexenv poly-name mono-type)
-  (multiple-value-bind (poly-expr present-p) (get poly-name (lexenv-polymorphic-values lexenv))
+  (multiple-value-bind (poly-expr present-p)
+      (hashref poly-name (lexenv-polymorphic-values lexenv))
     (cond (present-p (monomorphize-poly-expr lexenv
                                              poly-expr
                                              poly-name
