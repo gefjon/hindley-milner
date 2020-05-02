@@ -8,7 +8,7 @@
    :define-class
    :adjustable-vector :make-adjustable-vector :specialized-vector
    :shallow-copy
-   :|:| :-> :optional :void)
+   :|:| :->)
   (:import-from :trivial-types
    :tuple)
   (:import-from :generic-cl :hash-map)
@@ -19,7 +19,7 @@
    :hash-map-of
 
    ;; reexports from gefjon-utils
-   :define-class :|:| :-> :make-adjustable-vector :adjustable-vector :specialized-vector :shallow-copy :optional :void))
+   :define-class :|:| :-> :make-adjustable-vector :adjustable-vector :specialized-vector :shallow-copy))
 (cl:in-package :hindley-milner/prologue)
 
 (defmacro defenum (type-name common-slots variants)

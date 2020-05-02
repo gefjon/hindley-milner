@@ -10,10 +10,10 @@
    :parse-program)
   (:import-from :hindley-milner/monomorphize
    :monomorphize-program)
-  ;; (:import-from :hindley-milner/cps
-  ;;  :cps-transform)
-  ;; (:import-from :hindley-milner/closure
-  ;;  :make-closures-explicit)
+  (:import-from :hindley-milner/cps
+   :cps-transform)
+  (:import-from :hindley-milner/closure
+   :make-closures-explicit)
   (:export :compile))
 (cl:in-package :hindley-milner/compile)
 
@@ -22,7 +22,6 @@
          (ir1 (parse-program surface-syntax))
          (typed (infer-program-types ir1))
          (monomorphic (monomorphize-program typed))
-         ;; (cps (cps-transform monomorphic))
-         ;; (enclosed (make-closures-explicit cps)
-         )
-    monomorphic))
+         (cps (cps-transform monomorphic))
+         (enclosed (make-closures-explicit cps)))
+    enclosed))

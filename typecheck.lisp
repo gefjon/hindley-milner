@@ -10,7 +10,8 @@
 
 (defun infer-program-types (untyped-program)
   "returns a new `IR1:EXPR' that is like UNTYPED-PROGRAM, except its `TYPE' and `SCHEME' slots are populated with inferred types"
-  (multiple-value-bind (inferred-program constraints)
-      (infer:infer-program untyped-program)
+  (multiple-value-bind (inferred-program result-type constraints)
+      (infer:infer untyped-program ())
+    (declare (ignore result-type))
     (let ((substitution (unify:solve constraints)))
       (apply-substitution substitution inferred-program))))
