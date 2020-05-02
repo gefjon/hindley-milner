@@ -4,15 +4,11 @@
    :hindley-milner/prologue
    :iterate
    :cl)
-  (:import-from :hindley-milner/primop
-   :make-closure-env :access-closure-env)
   (:shadow :sequence)
   (:import-from :alexandria
    :make-gensym)
   (:import-from :trivial-types
    :proper-list)
-  (:shadowing-import-from :generic-cl
-   :hash-map :make-hash-map :ensure-get)
   (:export :make-closures-explicit :access-closure-env :access-closure-env-index))
 (cl:in-package :hindley-milner/closure)
 
@@ -25,13 +21,6 @@
 
 (deftype local-vars ()
   '(proper-list variable))
-
-(deftype function-closure-vars ()
-  '(hash-map-of variable variable))
-
-(deftype sequence (&optional element-type)
-  (declare (ignore element-type))
-  'cl:sequence)
 
 (|:| *closure-env* closure-env)
 (defvar *closure-env*)

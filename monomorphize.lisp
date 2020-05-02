@@ -6,8 +6,8 @@
    :iterate
    :trivial-types
    :cl)
-  (:shadowing-import-from :generic-cl
-   :equalp :hash :get :hash-map :make-hash-map :ensure-get)
+  (:import-from :genhash
+   :hashref :make-generic-hash-table :register-test-designator)
   (:import-from :hindley-milner/typecheck/unify
    :unify)
   (:import-from
@@ -27,35 +27,45 @@
                          (initform expr)
                          (body expr)))))
 
-(defmethod equalp ((lhs arrow) (rhs arrow))
-  (and (equalp (arrow-inputs lhs) (arrow-inputs rhs))
-       (equalp (arrow-output lhs) (arrow-output rhs))))
-(defmethod hash ((obj arrow))
-  (logxor (hash (arrow-inputs obj))
-          (hash (arrow-output obj))))
+(defgeneric type-equalp (lhs rhs))
+(defgeneric type-hash (type))
 
-(defmethod equalp ((lhs type-primitive) (rhs type-primitive))
+(register-test-designator 'type-equalp #'type-hash #'type-equalp)
+
+(defmethod type-equalp (lhs rhs)
+  (equalp lhs rhs))
+(defmethod type-hash (type)
+  (sxhash type))
+
+(defmethod type-equalp ((lhs arrow) (rhs arrow))
+  (and (type-equalp (arrow-inputs lhs) (arrow-inputs rhs))
+       (type-equalp (arrow-output lhs) (arrow-output rhs))))
+(defmethod type-hash ((obj arrow))
+  (logxor (type-hash (arrow-inputs obj))
+          (type-hash (arrow-output obj))))
+
+(defmethod type-equalp ((lhs type-primitive) (rhs type-primitive))
   (eq (type-primitive-name lhs) (type-primitive-name rhs)))
-(defmethod hash ((obj type-primitive))
-  (hash (type-primitive-name obj)))
+(defmethod type-hash ((obj type-primitive))
+  (type-hash (type-primitive-name obj)))
 
-(defmethod equalp ((lhs type-variable) (rhs type-variable))
+(defmethod type-equalp ((lhs type-variable) (rhs type-variable))
   (eq (type-variable-name lhs) (type-variable-name rhs)))
-(defmethod hash ((obj type-variable))
-  (hash (type-variable-name obj)))
+(defmethod type-hash ((obj type-variable))
+  (type-hash (type-variable-name obj)))
 
 (define-class lexenv
   ((polymorphic-values (hash-map-of symbol expr)
-                       :initform (make-hash-map :test #'eq))
+                       :initform (make-generic-hash-table :test 'eq))
    (monomorphic-values (association-list symbol expr)
                        :initform nil)
    (existing-monomorphizations (hash-map-of symbol (hash-map-of type symbol))
-                               :initform (make-hash-map :test #'eq))
+                               :initform (make-generic-hash-table :test #'eq))
    (parent (or lexenv null)
            :initform nil)))
 
 (defun push-poly-obj (lexenv let)
-  (setf (get (poly-let-binding let)
+  (setf (hashref (poly-let-binding let)
                  (lexenv-polymorphic-values lexenv))
         (poly-let-initform let))
   (values))
@@ -72,10 +82,10 @@
 (defun existing-monomorphization-second-level-map (lexenv poly-name)
   (ensure-get poly-name
               (lexenv-existing-monomorphizations lexenv)
-              (make-hash-map :test #'equalp)))
+              (make-generic-hash-table :test 'type-equalp)))
 
 (defun find-existing-monomorphization (lexenv poly-name mono-type)
-  (multiple-value-bind (val present-p) (get mono-type (existing-monomorphization-second-level-map lexenv poly-name))
+  (multiple-value-bind (val present-p) (hashref mono-type (existing-monomorphization-second-level-map lexenv poly-name))
     (cond (present-p val)
           ((lexenv-parent lexenv) (find-existing-monomorphization (lexenv-parent lexenv)
                                                                   poly-name
@@ -83,7 +93,7 @@
           (:otherwise nil))))
 
 (defun insert-into-existing-monomorphizations-map (lexenv poly-name mono-type mono-name)
-  (setf (get mono-type (existing-monomorphization-second-level-map lexenv poly-name))
+  (setf (hashref mono-type (existing-monomorphization-second-level-map lexenv poly-name))
         mono-name)
   (values))
 
@@ -97,7 +107,7 @@
     mono-name))
 
 (defun add-new-monomorphization (lexenv poly-name mono-type)
-  (multiple-value-bind (poly-expr present-p) (get poly-name (lexenv-polymorphic-values lexenv))
+  (multiple-value-bind (poly-expr present-p) (hashref poly-name (lexenv-polymorphic-values lexenv))
     (cond (present-p (monomorphize-poly-expr lexenv
                                              poly-expr
                                              poly-name
