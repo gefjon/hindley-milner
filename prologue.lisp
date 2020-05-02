@@ -11,14 +11,12 @@
    :|:| :-> :optional :void)
   (:import-from :trivial-types
    :tuple)
-  (:import-from :genhash
-   :hashref)
+  (:import-from :generic-cl :hash-map)
   (:export
    :defenum
    :extend-enum
    :def-c-enum
    :hash-map-of
-   :ensure-get
 
    ;; reexports from gefjon-utils
    :define-class :|:| :-> :make-adjustable-vector :adjustable-vector :specialized-vector :shallow-copy :optional :void))
@@ -81,11 +79,4 @@ supplied value, starting at 0 if no value is supplied."
 
 (deftype hash-map-of (&optional key value)
   (declare (ignore key value))
-  't)
-
-(defmacro ensure-get (key map default)
-  `(let* ((map ,map)
-          (key ,key))
-     (multiple-value-bind (value present-p) (hashref key map)
-       (if present-p value
-           (setf (hashref key map) ,default)))))
+  'hash-map)
