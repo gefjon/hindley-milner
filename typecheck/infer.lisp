@@ -3,33 +3,30 @@
   (:mix
    :hindley-milner/ir1
    :hindley-milner/typecheck/substitute
+   :hindley-milner/prologue
    :iterate
    :cl)
   (:import-from :trivial-types
    :association-list)
   (:import-from :hindley-milner/ir1)
-  (:export :infer :constraint :constraints :constraint-lhs :constraint-rhs))
+  (:export
+   :infer-program
+   :constraint :constraints :constraint-lhs :constraint-rhs))
 (cl:in-package :hindley-milner/typecheck/infer)
 
 (deftype constraint ()
   '(cons type type))
 
-(declaim (ftype (function (constraint) type)
-                constraint-lhs))
+(|:| #'constraint-lhs (-> (constraint) type))
 (defun constraint-lhs (constraint)
   (car constraint))
 
-(declaim (ftype (function (constraint) type)
-                constraint-rhs))
+(|:| #'constraint-rhs (-> (constraint) type))
 (defun constraint-rhs (constraint)
   (cdr constraint))
 
 (deftype constraints ()
   '(association-list type type))
-
-(declaim (ftype (function (constraint) type)
-                constraint-lhs))
-
 
 (defgeneric infer (expr type-env)
   (:documentation "returns (`VALUES' TYPED-IR1 TYPE CONSTRAINTS)
@@ -98,22 +95,39 @@ CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to
                         arrow-type
                         constraints)))))))
 
-(defmethod infer ((expr poly-let) type-env)
-  (multiple-value-bind (init-expr value-type value-constraints)
-      (infer (poly-let-initform expr) type-env)
-    (let* ((value-scheme (generalize value-type type-env))
-           (binding (poly-let-binding expr))
-           (local-env (acons binding value-scheme type-env)))
-      (multiple-value-bind (body return-type body-constraints)
-          (infer (poly-let-body expr) local-env)
-        (values (make-instance 'poly-let
-                               :type return-type
-                               :binding binding
-                               :scheme value-scheme
-                               :initform init-expr
-                               :body body)
-                return-type
-                (append value-constraints body-constraints))))))
+(|:| #'extend-type-env-for-def (-> (polymorphic type-env) type-env))
+(defun extend-type-env-for-def (def type-env)
+  (acons (definition-name def) (polymorphic-scheme def)
+         type-env))
+
+(|:| #'infer-definition (-> (untyped type-env) (values polymorphic constraints type-env &optional)))
+(defun infer-definition (untyped type-env)
+  "add type information to an `UNTYPED' `DEFINITION', returning three values:
+
+a `POLYMORPHIC' `DEFINITION', a `CONSTRAINTS' object describing the
+requirements on that definition, and a `TYPE-ENV' that extends
+TYPE-ENV with information about the new definition."
+  (multiple-value-bind (new-initform type constraints)
+      (infer (definition-initform untyped) type-env)
+    (let* ((new-def (make-instance 'polymorphic
+                                   :name (definition-name untyped)
+                                   :initform new-initform
+                                   :scheme (generalize type type-env))))
+      (values new-def
+              constraints
+              (extend-type-env-for-def new-def type-env)))))
+
+(defmethod infer ((expr let) type-env)
+  (multiple-value-bind (new-def def-constraints local-env)
+      (infer-definition (let-def expr) type-env)
+    (multiple-value-bind (new-body return-type body-constraints)
+        (infer (let-body expr) local-env)
+      (values (make-instance 'let
+                             :type return-type
+                             :def new-def
+                             :body new-body)
+              return-type
+              (append def-constraints body-constraints)))))
 
 (defmethod infer ((expr if) type-env)
   (multiple-value-bind (pred-expr pred-type pred-constraints)
@@ -150,7 +164,7 @@ CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to
 
 (defmethod infer ((expr quote) type-env)
   (declare (ignorable type-env))
-  (let ((type (etypecase (quote-it expr)
+  (let* ((type (etypecase (quote-it expr)
                 (boolean *boolean*)
                 (fixnum *fixnum*))))
     (values (make-instance 'quote
@@ -158,3 +172,24 @@ CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to
                            :it (quote-it expr))
             type
             ())))
+
+(|:| #'infer-program (-> (program) (values program constraints &optional)))
+(defmethod infer-program (program)
+  (iter
+    (with type-env = ())
+    (for def in-vector (program-definitions program))
+    (for (values new-def def-constraints new-env) = (infer-definition def type-env))
+    (setf type-env new-env)
+    (appending def-constraints into constraints)
+    (collect new-def into definitions result-type (vector definition))
+    (finally
+     (multiple-value-bind (entry result-type entry-constraints)
+         (infer (program-entry program) type-env)
+       (declare (ignore result-type))
+       (return
+         (values
+          (make-instance 'program
+                         :definitions definitions
+                         :entry entry)
+          (append entry-constraints constraints)))))))
+

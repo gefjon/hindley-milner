@@ -57,6 +57,7 @@
 ;; such.
 (defun type-env-free-variables (type-env)
   (iter (for (key . value) in type-env)
+    (declare (ignorable key))
     (unioning (free-type-variables value))))
 
 (declaim (ftype (function (type type-env) (values type-scheme &optional))

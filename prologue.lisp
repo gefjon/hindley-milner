@@ -8,7 +8,7 @@
    :define-class
    :adjustable-vector :make-adjustable-vector :specialized-vector
    :shallow-copy
-   :|:| :->)
+   :|:| :-> :void :optional)
   (:import-from :genhash
    :hashref)
   (:shadow :sequence)
@@ -23,7 +23,10 @@
    :sequence
 
    ;; reexports from gefjon-utils
-   :define-class :|:| :-> :make-adjustable-vector :adjustable-vector :specialized-vector :shallow-copy))
+   :define-class
+   :adjustable-vector :make-adjustable-vector :specialized-vector
+   :shallow-copy
+   :|:| :-> :void :optional))
 (cl:in-package :hindley-milner/prologue)
 
 (defmacro defenum (type-name common-slots variants)

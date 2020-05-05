@@ -17,15 +17,8 @@
   (:import-from :hindley-milner/typecheck/substitute
    :apply-substitution)
   (:export
-   :monomorphize-program
-   :mono-let :mono-let-binding :mono-let-bound-type :mono-let-initform :mono-let-body))
+   :monomorphize-program))
 (cl:in-package :hindley-milner/monomorphize)
-
-(extend-enum expr
-             ((mono-let ((binding symbol)
-                         (bound-type type)
-                         (initform expr)
-                         (body expr)))))
 
 (defgeneric type-equalp (lhs rhs))
 (defgeneric type-hash (type))
@@ -64,39 +57,49 @@
    (parent (or lexenv null)
            :initform nil)))
 
-(defun push-poly-obj (lexenv let)
-  (setf (hashref (poly-let-binding let)
+(|:| #'push-poly-obj (-> (lexenv polymorphic) void))
+(defun push-poly-obj (lexenv def)
+  (setf (hashref (definition-name def)
                  (lexenv-polymorphic-values lexenv))
-        (poly-let-initform let))
+        (definition-initform def))
   (values))
 
+(|:| #'collect-polymorphic-values (-> (expr lexenv) expr))
 (defun collect-polymorphic-values (program lexenv)
   "returns the body of PROGRAM, mutating LEXENV along the way."
   (iter    
     (with top-level-expr = program)
-    (unless (typep top-level-expr 'poly-let)
+    (unless (typep top-level-expr 'let)
       (return top-level-expr))
-    (push-poly-obj lexenv top-level-expr)
-    (setf top-level-expr (poly-let-body top-level-expr))))
+    (push-poly-obj lexenv (let-def top-level-expr))
+    (setf top-level-expr (let-body top-level-expr))))
 
+(|:| #'existing-monomorphization-second-level-map
+     (-> (lexenv symbol) (hash-map-of type symbol)))
 (defun existing-monomorphization-second-level-map (lexenv poly-name)
   (ensure-get poly-name
               (lexenv-existing-monomorphizations lexenv)
               (make-generic-hash-table :test 'type-equalp)))
 
+(|:| #'find-existing-monomorphization
+     (-> (lexenv symbol type) (optional symbol)))
 (defun find-existing-monomorphization (lexenv poly-name mono-type)
-  (multiple-value-bind (val present-p) (hashref mono-type (existing-monomorphization-second-level-map lexenv poly-name))
+  (multiple-value-bind (val present-p)
+      (hashref mono-type (existing-monomorphization-second-level-map lexenv poly-name))
     (cond (present-p val)
           ((lexenv-parent lexenv) (find-existing-monomorphization (lexenv-parent lexenv)
                                                                   poly-name
                                                                   mono-type))
           (:otherwise nil))))
 
+(|:| #'insert-into-existing-monomorphizations-map
+     (-> (lexenv symbol type symbol) void))
 (defun insert-into-existing-monomorphizations-map (lexenv poly-name mono-type mono-name)
   (setf (hashref mono-type (existing-monomorphization-second-level-map lexenv poly-name))
         mono-name)
   (values))
 
+(|:| #'monomorphize-poly-expr (-> (lexenv expr symbol type) symbol))
 (defun monomorphize-poly-expr (lexenv poly-expr poly-name mono-type)
   (let* ((poly-type (expr-type poly-expr))
          (substitution (unify mono-type poly-type))
@@ -106,6 +109,7 @@
     (insert-into-existing-monomorphizations-map lexenv poly-name mono-type mono-name)
     mono-name))
 
+(|:| #'add-new-monomorphization (-> (lexenv symbol type) symbol))
 (defun add-new-monomorphization (lexenv poly-name mono-type)
   (multiple-value-bind (poly-expr present-p) (hashref poly-name (lexenv-polymorphic-values lexenv))
     (cond (present-p (monomorphize-poly-expr lexenv
@@ -117,6 +121,7 @@
                                                             mono-type))
           (:otherwise (error "unbound poly-name ~a" poly-name)))))
 
+(|:| #'monomorphize-symbol (-> (symbol type lexenv) symbol))
 (defun monomorphize-symbol (symbol target-type lexenv)
   (or (find-existing-monomorphization lexenv symbol target-type)
       (add-new-monomorphization lexenv symbol target-type)))
@@ -197,19 +202,25 @@ defines a method for the class `FUNCALL' which recurses on its slots
                         :bindings (lambda-bindings lambda)
                         :body body))))))
 
-(define-monomorphize (poly-let enclosing-env)
+(|:| #'make-monomorphic-def (-> (symbol expr) monomorphic))
+(defun make-monomorphic-def (binding initform)
+  (make-instance 'monomorphic
+                 :name binding
+                 :type (expr-type initform)
+                 :initform initform))
+
+(define-monomorphize (let enclosing-env)
   (let* ((local-env (make-instance 'lexenv
                                    :parent enclosing-env))
-         (poly-body (collect-polymorphic-values poly-let local-env))
+         (poly-body (collect-polymorphic-values let local-env))
          (mono-body (recurse poly-body local-env)))
     (iter
       (with body = mono-body)
       (for (binding . initform) in (lexenv-monomorphic-values local-env))
-      (setf body (make-instance 'mono-let
+      (for def = (make-monomorphic-def binding initform))
+      (setf body (make-instance 'let
+                                :def def
                                 :type (expr-type body)
-                                :binding binding
-                                :bound-type (expr-type initform)
-                                :initform initform
                                 :body body))
       (finally (return body)))))
 
@@ -239,8 +250,21 @@ defines a method for the class `FUNCALL' which recurses on its slots
                    :side-effect side-effect
                    :return-value return-value)))
 
-(declaim (ftype (function (expr) (values expr &optional))
-                monomorphize-program))
+(|:| #'monomorphize-program (-> (program) program))
 (defun monomorphize-program (program)
   "returns a `IR1:EXPR' that is like `PROGRAM', except all polymorphic values are replacecd with equivalent monomorphic values"
-  (monomorphize program (make-instance 'lexenv)))
+  (iter
+    (with lexenv = (make-instance 'lexenv))
+    (for def in-vector (program-definitions program))
+    (push-poly-obj lexenv def)
+    (finally
+     (iter
+       (with monomorphic-entry = (monomorphize (program-entry program) lexenv))
+       (with monomorphic-defs = (adjustable-vector definition))
+       (for (binding . initform) in (lexenv-monomorphic-values lexenv))
+       (vector-push-extend (make-monomorphic-def binding initform)
+                           monomorphic-defs)
+       (finally (return-from monomorphize-program
+                  (make-instance 'program
+                                 :definitions monomorphic-defs
+                                 :entry monomorphic-entry)))))))

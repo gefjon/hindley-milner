@@ -9,13 +9,12 @@
   (:import-from :alexandria
    :make-gensym)
   (:import-from :hindley-milner/ir1)
-  (:import-from :hindley-milner/monomorphize)
   (:export :cps-transform :*exit-continuation*))
 (cl:in-package :hindley-milner/cps/trans)
 
-(|:| #'make-continuation-arg (-> (&optional symbol) variable))
+(|:| #'make-continuation-arg (-> (&optional symbol) local))
 (defun make-continuation-arg (&optional (name 'cont))
-  (make-instance 'variable
+  (make-instance 'local
                  :name (make-gensym name)
                  :type :continuation))
 
@@ -127,21 +126,22 @@ terms that must be computed prior to the call."
         compute-func))))
 
 
-(defmethod transform-to-expr ((expr monomorphize:mono-let)
+(defmethod transform-to-expr ((expr ir1:let)
                               &key
                                 current-continuation
                                 lexenv
                               &allow-other-keys)
-  (let* ((var-name (monomorphize:mono-let-binding expr))
-         (var-type (transform-type (monomorphize:mono-let-bound-type expr)))
-         (var (make-instance 'variable
+  (let* ((old-def (ir1:let-def expr))
+         (var-name (ir1:definition-name old-def))
+         (var-type (transform-type (ir1:monomorphic-type old-def)))
+         (var (make-instance 'local
                              :name var-name
                              :type var-type))
          (bound-env (cons var lexenv))
-         (body (transform-to-expr (monomorphize:mono-let-body expr)
+         (body (transform-to-expr (ir1:let-body expr)
                                   :current-continuation current-continuation
                                   :lexenv bound-env))
-         (binding-form (transform-binding (monomorphize:mono-let-initform expr)
+         (binding-form (transform-binding (ir1:definition-initform old-def)
                                           var
                                           body
                                           :lexenv lexenv)))
@@ -181,12 +181,12 @@ terms that must be computed prior to the call."
          (side-effect-expr (transform-to-expr (ir1:prog2-side-effect expr)
                                               :current-continuation ignore-cont-name
                                               :lexenv lexenv))
-         (ignore-var (make-instance 'variable
+         (ignore-var (make-instance 'local
                                     :name (make-gensym 'ignore)
                                     :type (transform-type
                                            (ir1:expr-type
                                             (ir1:prog2-side-effect expr)))))
-         (ignore-cont-defn (make-instance 'contdefn
+         (ignore-cont-defn (make-instance 'continuation
                                           :name ignore-cont-name
                                           :arg ignore-var
                                           :body ret-expr))
@@ -200,7 +200,7 @@ terms that must be computed prior to the call."
                                 current-continuation
                                 lexenv
                               &allow-other-keys)
-  (let* ((var (make-instance 'variable
+  (let* ((var (make-instance 'local
                              :name (make-gensym 'tmp)
                              :type (transform-type (ir1:expr-type expr))))
          (body (make-instance 'throw
@@ -219,7 +219,7 @@ terms that must be computed prior to the call."
 (defmethod transform-to-var ((expr ir1:expr)
                              &key
                              &allow-other-keys)
-  (let* ((variable (make-instance 'variable
+  (let* ((variable (make-instance 'local
                                   :name (make-gensym 'var)
                                   :type (transform-type (ir1:expr-type expr)))))
     (values variable (acons variable expr ()))))
@@ -231,7 +231,7 @@ terms that must be computed prior to the call."
   (iter
     (for arg-name in-vector (ir1:lambda-bindings ir1-lambda))
     (for arg-type in-vector (ir1:arrow-inputs (ir1:expr-type ir1-lambda)))
-    (collect (make-instance 'variable
+    (collect (make-instance 'local
                             :name arg-name
                             :type (transform-type arg-type))
       result-type (vector variable))))
@@ -254,22 +254,22 @@ terms that must be computed prior to the call."
          (fbody (transform-to-expr (ir1:lambda-body initform)
                                    :current-continuation continuation-arg
                                    :lexenv fenv))
-         (fdefn (make-instance 'fdefn
+         (function (make-instance 'function
                                :name var
                                :arglist args
                                :continuation-arg continuation-arg
                                :body fbody)))
     (make-instance 'bind
-                   :defn fdefn
+                   :defn function
                    :in body)))
 
 (defmethod transform-binding ((initform ir1:quote) var body
                               &key &allow-other-keys)
-  (let* ((constdefn (make-instance 'constdefn
+  (let* ((constant (make-instance 'constant
                                    :name var
                                    :value (ir1:quote-it initform))))
     (make-instance 'bind
-                   :defn constdefn
+                   :defn constant
                    :in body)))
 
 (defmethod transform-binding ((initform ir1:primop) var body
@@ -293,7 +293,7 @@ terms that must be computed prior to the call."
          (expr (transform-to-expr initform
                                   :lexenv lexenv
                                   :current-continuation cont-name))
-         (cont-defn (make-instance 'contdefn
+         (cont-defn (make-instance 'continuation
                                    :name cont-name
                                    :arg var
                                    :body body)))
@@ -301,11 +301,25 @@ terms that must be computed prior to the call."
                    :defn cont-defn
                    :in expr)))
 
-(defvar *exit-continuation* (make-instance 'variable
+(defvar *exit-continuation* (make-instance 'global
                                            :name 'exit
                                            :type :continuation)
   "the continuation to exit the program")
 
 (defun cps-transform (typed-ir1-program)
-  (transform-to-expr typed-ir1-program
-                     :current-continuation *exit-continuation*))
+  (iter
+    (for def in-vector (ir1:program-definitions typed-ir1-program))
+    (for global = (make-instance 'global
+                                 :name (ir1:definition-name def)
+                                 :type (transform-type (ir1:monomorphic-type def))))
+    (collect (cons global (ir1:definition-initform def))
+      into intermediate-terms
+      at beginning)
+    (collect global into lexenv at beginning)
+    (finally
+     (return
+       (compute-intermediate-terms intermediate-terms
+                                   (transform-to-expr (ir1:program-entry typed-ir1-program)
+                                                      :lexenv lexenv
+                                                      :current-continuation *exit-continuation*)
+                                   lexenv)))))
