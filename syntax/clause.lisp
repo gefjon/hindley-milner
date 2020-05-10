@@ -30,10 +30,10 @@
 (deftype literal () '(or fixnum boolean))
 
 (define-class definition
-  ((binding symbol)
-   (value clause)))
+    ((binding symbol)
+     (value clause)))
 
-(defenum clause ()
+(define-enum clause ()
   ((variable ((name symbol)))
    (quote ((it literal)))
    (funcall ((function clause)

@@ -18,7 +18,7 @@
    :type-env :type-env-lookup))
 (cl:in-package :hindley-milner/ir1/type)
 
-(defenum type ()
+(define-enum type ()
   ((type-variable ((name symbol)))
    (type-primitive ((name t)))
    (arrow ((inputs (vector type))

@@ -15,9 +15,9 @@
   (:import-from :trivial-types
    :tuple)
   (:export
-   :defenum
+   :define-enum
    :extend-enum
-   :def-c-enum
+   :define-c-enum
    :hash-map-of
    :ensure-get
    :sequence
@@ -29,7 +29,7 @@
    :|:| :-> :void :optional))
 (cl:in-package :hindley-milner/prologue)
 
-(defmacro defenum (type-name common-slots variants)
+(defmacro define-enum (type-name common-slots variants)
   "define an enum or sum type named TYPE-NAME with COMMON-SLOTS.
 
 this compiles into a superclass TYPE-NAME and a subtype for each of
@@ -58,7 +58,7 @@ this just defines subclasses of ENUM-NAME."
     `(progn
        ,@(mapcar #'define-variant variants))))
 
-(defmacro def-c-enum (name &rest variants)
+(defmacro define-c-enum (name &rest variants)
   "define a c-style enum, which associates several keywords with integer values.
 
 each of the VARIANTS should be either:

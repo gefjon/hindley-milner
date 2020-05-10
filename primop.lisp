@@ -7,6 +7,4 @@
 (cl:in-package :hindley-milner/primop)
 
 (deftype operator ()
-  '(member
-
-    hm:+ hm:- hm:* hm:/ hm:=))
+  '(member hm:+ hm:- hm:* hm:/ hm:=))
