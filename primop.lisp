@@ -1,8 +1,7 @@
 (uiop:define-package :hindley-milner/primop
   (:mix :hindley-milner/prologue :cl)
   (:import-from :hindley-milner/syntax/package)
-  (:export
-   :operator)
+  (:export :operator)
   (:nicknames :primop))
 (cl:in-package :hindley-milner/primop)
 

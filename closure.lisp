@@ -17,18 +17,15 @@
 (deftype local-vars ()
   '(proper-list local))
 
-(|:| *closure-env* closure-env)
-(defvar *closure-env*)
-(setf (documentation '*closure-env* 'cl:variable)
-      "a `CLOSURE-ENV' which will map variables for the current
-      function to close over to enclosed variables.")
+(define-special *closure-env* closure-env
+    "a `CLOSURE-ENV' which will map variables for the current function to close over to enclosed variables.")
 
 (defmacro with-closure-env (&body body)
   `(let* ((*closure-env* (make-generic-hash-table :test #'eq)))
      ,@body))
 
-(|:| *local-vars* local-vars)
-(defvar *local-vars*)
+(define-special *local-vars* local-vars
+    "a `LOCAL-VARS' (ie cl-style list-as-set) of `LOCAL's which are bound and need not be closed over.")
 
 (defmacro with-locals (locals &body body)
   `(let* ((*local-vars* ,locals))

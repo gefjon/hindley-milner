@@ -21,6 +21,7 @@
    :hash-map-of
    :ensure-get
    :sequence
+   :define-special
 
    ;; reexports from gefjon-utils
    :define-class
@@ -98,3 +99,13 @@ supplied value, starting at 0 if no value is supplied."
 (deftype sequence (&optional element-type)
   (declare (ignore element-type))
   'cl:sequence)
+
+(defmacro define-special (name type &optional (docstring "special variable defined by `DEFINE-SPECIAL'"))
+  "define a special variable NAME of TYPE which is globally unbound.
+
+for example: (define-special *foo* fixnum)"
+  `(progn
+     (|:| ,name ,type)
+     (defvar ,name)
+     (eval-when (:compile-toplevel :load-toplevel :execute)
+       (setf (documentation ',name 'cl:variable) ,docstring))))
