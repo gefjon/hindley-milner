@@ -1,29 +1,30 @@
 (uiop:define-package :hindley-milner/ir1/expr
   (:mix
+   :hindley-milner/ir1/type
    :hindley-milner/prologue
    :cl)
-  (:import-from :hindley-milner/subst);; for `RECURSE-ON-SLOTS'
+  (:import-from :hindley-milner/subst) ;; for `RECURSE-ON-SLOTS'
   (:import-from :hindley-milner/primop
    :operator)
   (:shadow :variable :quote :funcall :lambda :let :if :prog2)
   (:export
 
-   :definition :definition-name :definition-initform
+   :definition :name :initform
    :untyped
-   :polymorphic :polymorphic-scheme
-   :monomorphic :monomorphic-type
+   :polymorphic :scheme
+   :monomorphic :type
    
-   :expr :expr-type
+   :expr :type
    :variable :variable-name
-   :quote :quote-it
-   :funcall :funcall-function :funcall-args
-   :lambda  :lambda-bindings :lambda-body
-   :let :let-def :let-body
-   :if :if-predicate :if-then-case :if-else-case
-   :primop :primop-op :primop-args
-   :prog2 :prog2-side-effect :prog2-return-value
+   :quote :it
+   :funcall :func :args
+   :lambda  :bindings :body
+   :let :def :body
+   :if :predicate :then-case :else-case
+   :primop :op :args
+   :prog2 :side-effect :return-value
 
-   :program :program-definitions :program-entry))
+   :program :definitions :entry))
 (cl:in-package :hindley-milner/ir1/expr)
 
 (define-enum definition ((name symbol)
@@ -42,7 +43,7 @@
 (define-enum expr ((type type :may-init-unbound t))
   ((variable ((name symbol)))
    (quote ((it t)))
-   (funcall ((function expr)
+   (funcall ((func expr)
              (args (vector expr))))
    (lambda ((bindings (vector symbol))
             (body expr)))
@@ -65,7 +66,7 @@
 ;; and `VARIABLE', so each `RECURSE-ON-SLOTS' below must also list
 ;; `TYPE'
 (subst:recurse-on-slots funcall
-  type function args)
+  type func args)
 (subst:recurse-on-slots lambda
   type bindings body)
 (subst:recurse-on-slots let

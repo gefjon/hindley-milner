@@ -58,8 +58,8 @@ elements)"))
 (|:| #'make-closure-for-local (-> (local) closure))
 (defun make-closure-for-local (local)
   (make-instance 'closure
-                 :name (variable-name local)
-                 :type (variable-type local)))
+                 :name (name local)
+                 :type (type local)))
 
 (|:| #'enclose-var (-> (variable) variable))
 (defun enclose-var (var)
@@ -74,16 +74,16 @@ elements)"))
 
 (defmethod collect-closure-vars ((expr let))
   (shallow-copy expr
-                :in (with-additional-local (let-var expr)
-                      (collect-closure-vars (let-in expr)))
-                :args (enclose-arglist (let-args expr))))
+                :in (with-additional-local (var expr)
+                      (collect-closure-vars (in expr)))
+                :args (enclose-arglist (args expr))))
 
 (|:| #'convert-func-body (-> (procedure local-vars) procedure))
 (defun convert-func-body (defn inner-locals)
   (with-closure-env
     (with-locals inner-locals
       (shallow-copy defn
-                    :body (collect-closure-vars (procedure-body defn))
+                    :body (collect-closure-vars (body defn))
                     :closes-over *closure-env*))))
 
 (defgeneric closurify-defn (defn)
@@ -91,16 +91,16 @@ elements)"))
 
 (defmethod collect-closure-vars ((expr bind))
   (shallow-copy expr
-                :defn (closurify-defn (bind-defn expr))
-                :in (with-additional-local (definition-name (bind-defn expr))
-                      (collect-closure-vars (bind-in expr)))))
+                :defn (closurify-defn (defn expr))
+                :in (with-additional-local (name (defn expr))
+                      (collect-closure-vars (in expr)))))
 
 (defmethod closurify-defn ((defn continuation))
-  (convert-func-body defn (list (continuation-arg defn))))
+  (convert-func-body defn (list (arg defn))))
 
-(defmethod closurify-defn ((defn function))
-  (convert-func-body defn (cons (function-continuation-arg defn)
-                                (coerce (function-arglist defn) 'list))))
+(defmethod closurify-defn ((defn func))
+  (convert-func-body defn (cons (arglist defn)
+                                (coerce (arglist defn) 'list))))
 
 (defmethod closurify-defn ((defn constant))
   defn)
@@ -108,20 +108,20 @@ elements)"))
 
 (defmethod collect-closure-vars ((expr if))
   (shallow-copy expr
-                :predicate (enclose-var (if-predicate expr))
-                :then-clause (collect-closure-vars (if-then-clause expr))
-                :else-clause (collect-closure-vars (if-else-clause expr))))
+                :predicate (enclose-var (predicate expr))
+                :then-clause (collect-closure-vars (then-clause expr))
+                :else-clause (collect-closure-vars (else-clause expr))))
 
 (defmethod collect-closure-vars ((expr apply))
   (shallow-copy expr
-                :func (enclose-var (apply-func expr))
-                :args (enclose-arglist (apply-args expr))
-                :continuation (enclose-var (apply-continuation expr))))
+                :func (enclose-var (func expr))
+                :args (enclose-arglist (args expr))
+                :continuation (enclose-var (continuation expr))))
 
 (defmethod collect-closure-vars ((expr throw))
   (shallow-copy expr
-                :cont (enclose-var (throw-cont expr))
-                :arg (enclose-var (throw-arg expr))))
+                :cont (enclose-var (cont expr))
+                :arg (enclose-var (arg expr))))
 
 (defun make-closures-explicit (program)
   (with-closure-env

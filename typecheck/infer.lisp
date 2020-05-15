@@ -11,18 +11,18 @@
   (:import-from :hindley-milner/ir1)
   (:export
    :infer-program
-   :constraint :constraints :constraint-lhs :constraint-rhs))
+   :constraint :constraints :lhs :rhs))
 (cl:in-package :hindley-milner/typecheck/infer)
 
 (deftype constraint ()
   '(cons type type))
 
-(|:| #'constraint-lhs (-> (constraint) type))
-(defun constraint-lhs (constraint)
+(|:| #'lhs (-> (constraint) type))
+(defun lhs (constraint)
   (car constraint))
 
-(|:| #'constraint-rhs (-> (constraint) type))
-(defun constraint-rhs (constraint)
+(|:| #'rhs (-> (constraint) type))
+(defun rhs (constraint)
   (cdr constraint))
 
 (deftype constraints ()
@@ -37,7 +37,7 @@ TYPE is the inferred type of EXPR, and
 CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to solve"))
 
 (defmethod infer ((expr variable) type-env)
-  (let* ((name (variable-name expr))
+  (let* ((name (name expr))
          (type (instantiate (type-env-lookup type-env name)))
          (new-node (make-instance 'variable
                                   :type type
@@ -46,24 +46,24 @@ CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to
 
 (defmethod infer ((expr funcall) type-env)
   (multiple-value-bind (func-node func-type func-constraints)
-      (infer (funcall-function expr) type-env)
+      (infer (func expr) type-env)
     (iter
-      (for arg-expr in-vector (funcall-args expr))
+      (for arg-expr in-vector (args expr))
       (for (values arg-node arg-type arg-constraint) = (infer arg-expr type-env))
       (collect arg-node into arg-nodes result-type (vector expr))
       (collect arg-type into arg-types result-type (vector type))
       (unioning arg-constraint into arg-constraints)
       (finally
        (let* ((return-type (new-type-variable))
-             (arrow-type (make-instance 'arrow
-                                        :inputs arg-types
-                                        :output return-type))
-             (funcall-constraints (acons arrow-type func-type ()))
-             (all-constraints (append funcall-constraints func-constraints arg-constraints))
-             (new-node (make-instance 'funcall
-                                      :type return-type
-                                      :function func-node
-                                      :args arg-nodes)))
+              (arrow-type (make-instance 'arrow
+                                         :inputs arg-types
+                                         :output return-type))
+              (funcall-constraints (acons arrow-type func-type ()))
+              (all-constraints (append funcall-constraints func-constraints arg-constraints))
+              (new-node (make-instance 'funcall
+                                       :type return-type
+                                       :func func-node
+                                       :args arg-nodes)))
          (return (values new-node
                          return-type
                          all-constraints)))))))
@@ -76,20 +76,20 @@ CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to
 (defmethod infer ((expr lambda) type-env)
   (iter
     (with function-env = type-env)
-    (for binding in-vector (lambda-bindings expr))
+    (for binding in-vector (bindings expr))
     (for arg-type = (new-type-variable binding))
     (for scheme = (make-constant-scheme arg-type))
     (collect arg-type into arg-types result-type (vector type))
     (push (cons binding scheme) function-env)
     (finally
      (multiple-value-bind (body return-type constraints)
-        (infer (lambda-body expr) function-env)
+         (infer (body expr) function-env)
       (let* ((arrow-type (make-instance 'arrow
                                        :inputs arg-types
                                        :output return-type))
              (new-node (make-instance 'lambda
                                       :type arrow-type
-                                      :bindings (lambda-bindings expr)
+                                      :bindings (bindings expr)
                                       :body body)))
         (return (values new-node
                         arrow-type
@@ -97,7 +97,7 @@ CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to
 
 (|:| #'extend-type-env-for-def (-> (polymorphic type-env) type-env))
 (defun extend-type-env-for-def (def type-env)
-  (acons (definition-name def) (polymorphic-scheme def)
+  (acons (name def) (scheme def)
          type-env))
 
 (|:| #'infer-definition (-> (untyped type-env) (values polymorphic constraints type-env &optional)))
@@ -108,9 +108,9 @@ a `POLYMORPHIC' `DEFINITION', a `CONSTRAINTS' object describing the
 requirements on that definition, and a `TYPE-ENV' that extends
 TYPE-ENV with information about the new definition."
   (multiple-value-bind (new-initform type constraints)
-      (infer (definition-initform untyped) type-env)
+      (infer (initform untyped) type-env)
     (let* ((new-def (make-instance 'polymorphic
-                                   :name (definition-name untyped)
+                                   :name (name untyped)
                                    :initform new-initform
                                    :scheme (generalize type type-env))))
       (values new-def
@@ -119,9 +119,9 @@ TYPE-ENV with information about the new definition."
 
 (defmethod infer ((expr let) type-env)
   (multiple-value-bind (new-def def-constraints local-env)
-      (infer-definition (let-def expr) type-env)
+      (infer-definition (def expr) type-env)
     (multiple-value-bind (new-body return-type body-constraints)
-        (infer (let-body expr) local-env)
+        (infer (body expr) local-env)
       (values (make-instance 'let
                              :type return-type
                              :def new-def
@@ -131,11 +131,11 @@ TYPE-ENV with information about the new definition."
 
 (defmethod infer ((expr if) type-env)
   (multiple-value-bind (pred-expr pred-type pred-constraints)
-      (infer (if-predicate expr) type-env)
+      (infer (predicate expr) type-env)
     (multiple-value-bind (then-expr then-type then-constraints)
-        (infer (if-then-case expr) type-env)
+        (infer (then-case expr) type-env)
       (multiple-value-bind (else-expr else-type else-constraints)
-          (infer (if-else-case expr) type-env)
+          (infer (else-case expr) type-env)
         (let* ((new-node (make-instance 'if
                                         :type then-type
                                         :predicate pred-expr
@@ -151,10 +151,10 @@ TYPE-ENV with information about the new definition."
 
 (defmethod infer ((expr prog2) type-env)
   (multiple-value-bind (side-effect-expr side-effect-type side-effect-constraints)
-      (infer (prog2-side-effect expr) type-env)
+      (infer (side-effect expr) type-env)
     (declare (ignore side-effect-type))
     (multiple-value-bind (return-expr return-type return-constraints)
-        (infer (prog2-return-value expr) type-env)
+        (infer (return-value expr) type-env)
       (values (make-instance 'prog2
                              :type return-type
                              :side-effect side-effect-expr
@@ -164,12 +164,12 @@ TYPE-ENV with information about the new definition."
 
 (defmethod infer ((expr quote) type-env)
   (declare (ignorable type-env))
-  (let* ((type (etypecase (quote-it expr)
+  (let* ((type (etypecase (it expr)
                 (boolean *boolean*)
                 (fixnum *fixnum*))))
     (values (make-instance 'quote
                            :type type
-                           :it (quote-it expr))
+                           :it (it expr))
             type
             ())))
 
@@ -177,14 +177,14 @@ TYPE-ENV with information about the new definition."
 (defmethod infer-program (program)
   (iter
     (with type-env = ())
-    (for def in-vector (program-definitions program))
+    (for def in-vector (definitions program))
     (for (values new-def def-constraints new-env) = (infer-definition def type-env))
     (setf type-env new-env)
     (appending def-constraints into constraints)
     (collect new-def into definitions result-type (vector definition))
     (finally
      (multiple-value-bind (entry result-type entry-constraints)
-         (infer (program-entry program) type-env)
+         (infer (entry program) type-env)
        (declare (ignore result-type))
        (return
          (values

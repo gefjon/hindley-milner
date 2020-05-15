@@ -7,16 +7,16 @@
 
    :boolean-literal
    :literal
-   :definition :definition-binding :definition-value
+   :definition :binding :value
 
    :clause
-   :variable :variable-name
-   :quote :quote-it
-   :funcall :funcall-function :funcall-args
-   :lambda :lambda-bindings :lambda-body
-   :let :let-bindings :let-body
-   :if :if-predicate :if-then-case :if-else-case
-   :primop :primop-op :primop-args))
+   :variable :name
+   :quote :it
+   :funcall :func :args
+   :lambda :bindings :body
+   :let :bindings :body
+   :if :predicate :then-case :else-case
+   :primop :op :args))
 (cl:in-package :hindley-milner/syntax/clause)
 
 (deftype boolean-literal ()
@@ -36,7 +36,7 @@
 (define-enum clause ()
   ((variable ((name symbol)))
    (quote ((it literal)))
-   (funcall ((function clause)
+   (funcall ((func clause)
              (args (vector clause))))
    (lambda ((bindings (vector symbol))
             (body (vector clause))))

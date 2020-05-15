@@ -39,7 +39,7 @@
 
 e.g. (define-parser funcall (function &rest args)
        (make-instance 'funcall
-                      :function (parse function)
+                      :func (parse function)
                       :args (mapcar #'parse args)))"
   (cl:let ((head (get-hm-symbol head)))
     (with-gensyms (head-arg stuff-arg)
@@ -67,12 +67,12 @@ e.g. (define-parser funcall (function &rest args)
                         :op head
                         :args (parse-body args))
          (make-instance 'funcall
-                        :function (parse head)
+                        :func (parse head)
                         :args (parse-body args))))
 
 (define-parser funcall (function &rest args)
   (make-instance 'funcall
-                 :function (parse function)
+                 :func (parse function)
                  :arg (parse-body args)))
 
 (define-parser lambda (lambda-list &body body)

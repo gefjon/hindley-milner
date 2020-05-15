@@ -2,7 +2,7 @@
     (:nicknames :unify)
   (:mix :hindley-milner/ir1/type :iterate :cl)
   (:import-from :hindley-milner/typecheck/infer
-   :constraints :constraint :constraint-lhs :constraint-rhs)
+   :constraints :constraint :lhs :rhs)
   (:import-from :hindley-milner/typecheck/substitute
    :substitution :apply-substitution)
   (:export :solve :unify))
@@ -25,7 +25,7 @@
 (declaim (ftype (function (constraint) (values substitution &optional))
                 solve-constraint))
 (defun solve-constraint (constraint)
-  (unify (constraint-lhs constraint) (constraint-rhs constraint)))
+  (unify (lhs constraint) (rhs constraint)))
 
 (defgeneric unify (lhs rhs)
   (:documentation "returns a unifying `SUBSTITUTION' for the constraint that LHS and RHS are the same type"))
@@ -48,17 +48,17 @@
 
 (defmethod unify ((lhs arrow) (rhs arrow))
   (iter
-    (for lhs-input in-vector (arrow-inputs lhs))
-    (for rhs-input in-vector (arrow-inputs rhs))
+    (for lhs-input in-vector (inputs lhs))
+    (for rhs-input in-vector (inputs rhs))
     (collect (cons lhs-input rhs-input) into input-constraints at beginning)
     (finally
      (return
-       (solve (acons (arrow-output lhs)
-                     (arrow-output rhs)
+       (solve (acons (output lhs)
+                     (output rhs)
                      input-constraints))))))
 
 (defmethod unify ((lhs type-primitive) (rhs type-primitive))
-  (unless (eq (type-primitive-name lhs) (type-primitive-name rhs))
+  (unless (eq (name lhs) (name rhs))
     (error "cannot unify type-primitives ~s with ~s"
-           (type-primitive-name lhs)
-           (type-primitive-name rhs))))
+           (name lhs)
+           (name rhs))))

@@ -17,7 +17,7 @@
   (:export
    :hindley-milner ;; names the readtable
 
-   :program :program-definitions :program-entry
+   :program :definitions :entry
    :read-program-from-file))
 (cl:in-package :hindley-milner/syntax)
 

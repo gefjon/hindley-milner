@@ -8,25 +8,25 @@
   (:import-from :alexandria
    :symbolicate)
   (:shadow
-   :function :type :variable :let :if :apply :throw :prog2)
+   :func :variable :let :if :apply :throw :prog2)
   (:export
-   :variable :variable-name :variable-type
+   :variable :name :type
    :global :local :closure
 
    :closure-env
 
-   :definition :definition-name
-   :procedure :procedure-body :procedure-closes-over
-   :function :function-arglist :function-continuation-arg
-   :continuation :continuation-arg
-   :constant :constant-value
+   :definition :name
+   :procedure :body :closes-over
+   :func :arglist :continuation-arg
+   :continuation :arg
+   :constant :value
 
    :expr
-   :let :let-var :let-prim-op :let-args :let-in
-   :bind :bind-defn :bind-in
-   :if :if-predicate :if-then-clause :if-else-clause
-   :apply :apply-func :apply-args :apply-continuation
-   :throw :throw-cont :throw-arg))
+   :let :var :prim-op :args :in
+   :bind :defn :in
+   :if :predicate :then-clause :else-clause
+   :apply :func :args :continuation
+   :throw :cont :arg))
 (cl:in-package :hindley-milner/cps/expr)
 
 (define-enum variable ((name symbol)
@@ -46,7 +46,7 @@
      (closes-over closure-env :may-init-unbound t))
   :superclasses (definition))
 
-(define-class function
+(define-class func
     ((arglist (vector variable))
      (continuation-arg variable))
   :superclasses (procedure))

@@ -7,13 +7,13 @@
   (:export
 
    :type
-   :type-variable :type-variable-name
-   :type-primitive :type-primitive-name :*boolean* :*fixnum* :*void*
-   :arrow :arrow-inputs :arrow-output
+   :type-variable :name
+   :type-primitive :name :*boolean* :*fixnum* :*void*
+   :arrow :inputs :output
    
    :new-type-variable
 
-   :type-scheme :type-scheme-bindings :type-scheme-body
+   :type-scheme :bindings :body
 
    :type-env :type-env-lookup))
 (cl:in-package :hindley-milner/ir1/type)
@@ -36,7 +36,7 @@
 
 (defun new-type-variable (&optional (name "type-variable-"))
   (let ((name-string (etypecase name
-                       (type-variable (symbol-name (type-variable-name name)))
+                       (type-variable (symbol-name (name name)))
                        (symbol (symbol-name name))
                        (string name))))
     (make-instance 'type-variable

@@ -31,37 +31,37 @@
   (sxhash type))
 
 (defmethod type-equalp ((lhs arrow) (rhs arrow))
-  (and (type-equalp (arrow-inputs lhs) (arrow-inputs rhs))
-       (type-equalp (arrow-output lhs) (arrow-output rhs))))
+  (and (type-equalp (inputs lhs) (inputs rhs))
+       (type-equalp (output lhs) (output rhs))))
 (defmethod type-hash ((obj arrow))
-  (logxor (type-hash (arrow-inputs obj))
-          (type-hash (arrow-output obj))))
+  (logxor (type-hash (inputs obj))
+          (type-hash (output obj))))
 
 (defmethod type-equalp ((lhs type-primitive) (rhs type-primitive))
-  (eq (type-primitive-name lhs) (type-primitive-name rhs)))
+  (eq (name lhs) (name rhs)))
 (defmethod type-hash ((obj type-primitive))
-  (type-hash (type-primitive-name obj)))
+  (type-hash (name obj)))
 
 (defmethod type-equalp ((lhs type-variable) (rhs type-variable))
-  (eq (type-variable-name lhs) (type-variable-name rhs)))
+  (eq (name lhs) (name rhs)))
 (defmethod type-hash ((obj type-variable))
-  (type-hash (type-variable-name obj)))
+  (type-hash (name obj)))
 
 (define-class lexenv
-  ((polymorphic-values (hash-map-of symbol expr)
-                       :initform (make-generic-hash-table :test 'eq))
-   (monomorphic-values (association-list symbol expr)
-                       :initform nil)
-   (existing-monomorphizations (hash-map-of symbol (hash-map-of type symbol))
-                               :initform (make-generic-hash-table :test #'eq))
-   (parent (or lexenv null)
-           :initform nil)))
+    ((polymorphic-values (hash-map-of symbol expr)
+                         :initform (make-generic-hash-table :test 'eq))
+     (monomorphic-values (association-list symbol expr)
+                         :initform nil)
+     (existing-monomorphizations (hash-map-of symbol (hash-map-of type symbol))
+                                 :initform (make-generic-hash-table :test #'eq))
+     (parent (or lexenv null)
+             :initform nil)))
 
 (|:| #'push-poly-obj (-> (lexenv polymorphic) void))
 (defun push-poly-obj (lexenv def)
-  (setf (hashref (definition-name def)
-                 (lexenv-polymorphic-values lexenv))
-        (definition-initform def))
+  (setf (hashref (name def)
+                 (polymorphic-values lexenv))
+        (initform def))
   (values))
 
 (|:| #'collect-polymorphic-values (-> (expr lexenv) expr))
@@ -71,14 +71,14 @@
     (with top-level-expr = program)
     (unless (typep top-level-expr 'let)
       (return top-level-expr))
-    (push-poly-obj lexenv (let-def top-level-expr))
-    (setf top-level-expr (let-body top-level-expr))))
+    (push-poly-obj lexenv (def top-level-expr))
+    (setf top-level-expr (body top-level-expr))))
 
 (|:| #'existing-monomorphization-second-level-map
      (-> (lexenv symbol) (hash-map-of type symbol)))
 (defun existing-monomorphization-second-level-map (lexenv poly-name)
   (ensure-get poly-name
-              (lexenv-existing-monomorphizations lexenv)
+              (existing-monomorphizations lexenv)
               (make-generic-hash-table :test 'type-equalp)))
 
 (|:| #'find-existing-monomorphization
@@ -87,7 +87,7 @@
   (multiple-value-bind (val present-p)
       (hashref mono-type (existing-monomorphization-second-level-map lexenv poly-name))
     (cond (present-p val)
-          ((lexenv-parent lexenv) (find-existing-monomorphization (lexenv-parent lexenv)
+          ((parent lexenv) (find-existing-monomorphization (parent lexenv)
                                                                   poly-name
                                                                   mono-type))
           (:otherwise nil))))
@@ -101,24 +101,24 @@
 
 (|:| #'monomorphize-poly-expr (-> (lexenv expr symbol type) symbol))
 (defun monomorphize-poly-expr (lexenv poly-expr poly-name mono-type)
-  (let* ((poly-type (expr-type poly-expr))
+  (let* ((poly-type (type poly-expr))
          (substitution (unify mono-type poly-type))
          (mono-expr (monomorphize (apply-substitution substitution poly-expr) lexenv))
          (mono-name (make-gensym poly-name)))
-    (push (cons mono-name mono-expr) (lexenv-monomorphic-values lexenv))
+    (push (cons mono-name mono-expr) (monomorphic-values lexenv))
     (insert-into-existing-monomorphizations-map lexenv poly-name mono-type mono-name)
     mono-name))
 
 (|:| #'add-new-monomorphization (-> (lexenv symbol type) symbol))
 (defun add-new-monomorphization (lexenv poly-name mono-type)
-  (multiple-value-bind (poly-expr present-p) (hashref poly-name (lexenv-polymorphic-values lexenv))
+  (multiple-value-bind (poly-expr present-p) (hashref poly-name (polymorphic-values lexenv))
     (cond (present-p (monomorphize-poly-expr lexenv
                                              poly-expr
                                              poly-name
                                              mono-type))
-          ((lexenv-parent lexenv) (add-new-monomorphization (lexenv-parent lexenv)
-                                                            poly-name
-                                                            mono-type))
+          ((parent lexenv) (add-new-monomorphization (parent lexenv)
+                                                     poly-name
+                                                     mono-type))
           (:otherwise (error "unbound poly-name ~a" poly-name)))))
 
 (|:| #'monomorphize-symbol (-> (symbol type lexenv) symbol))
@@ -131,9 +131,9 @@
 
 (defmethod monomorphize ((var variable) lexenv)
   (make-instance 'variable
-                 :type (expr-type var)
-                 :name (monomorphize-symbol (variable-name var)
-                                            (expr-type var)
+                 :type (type var)
+                 :name (monomorphize-symbol (name var)
+                                            (type var)
                                             lexenv)))
 
 (defmethod monomorphize ((quote quote) lexenv)
@@ -152,9 +152,10 @@ which calls `MONOMORPHIZE' on its argument with the same `LEXENV'.
 for example:
 
   (DEFINE-MONOMORPHIZE FUNCALL
-    (MAKE-FUNCALL (FUNCALL-TYPE FUNCALL)
-                  (RECURSE (FUNCALL-FUNCTION FUNCALL))
-                  (RECURSE (FUNCALL-ARG FUNCALL))))
+    (MAKE-INSTANCE 'FUNCALL
+                  :TYPE (TYPE FUNCALL)
+                  :FUNC (RECURSE (FUNC FUNCALL))
+                  :ARGS (RECURSE (ARGS FUNCALL))))
 
 defines a method for the class `FUNCALL' which recurses on its slots
 `FUNCTION' and `ARG', but passes its slot `TYPE' unchanged."
@@ -173,40 +174,40 @@ defines a method for the class `FUNCALL' which recurses on its slots
     (collect (recurse expr) result-type (vector expr))))
 
 (define-monomorphize funcall
-  (let* ((function (recurse (funcall-function funcall)))
-         (return-type (arrow-output (expr-type function)))
-         (args (recurse (funcall-args funcall))))
+  (let* ((function (recurse (func funcall)))
+         (return-type (output (type function)))
+         (args (recurse (args funcall))))
     (make-instance 'funcall
                    :type return-type
-                   :function (recurse (funcall-function funcall))
+                   :func (recurse (func funcall))
                    :args args)))
 
 (define-monomorphize (lambda enclosing-env)
   (iter
     (with local-env = (make-instance 'lexenv
                                      :parent enclosing-env))
-    (for bound-name in-vector (lambda-bindings lambda))
-    (for bound-type in-vector (arrow-inputs (expr-type lambda)))
+    (for bound-name in-vector (bindings lambda))
+    (for bound-type in-vector (inputs (type lambda)))
     (insert-into-existing-monomorphizations-map local-env
                                                 bound-name
                                                 bound-type
                                                 bound-name)
     (finally
-     (let* ((body (recurse (lambda-body lambda) local-env))
-            (return-type (expr-type body)))
+     (let* ((body (recurse (body lambda) local-env))
+            (return-type (type body)))
        (return
          (make-instance 'lambda
                         :type (make-instance 'arrow
-                                             :inputs (arrow-inputs (expr-type lambda))
+                                             :inputs (inputs (type lambda))
                                              :output return-type)
-                        :bindings (lambda-bindings lambda)
+                        :bindings (bindings lambda)
                         :body body))))))
 
 (|:| #'make-monomorphic-def (-> (symbol expr) monomorphic))
 (defun make-monomorphic-def (binding initform)
   (make-instance 'monomorphic
                  :name binding
-                 :type (expr-type initform)
+                 :type (type initform)
                  :initform initform))
 
 (define-monomorphize (let enclosing-env)
@@ -216,19 +217,19 @@ defines a method for the class `FUNCALL' which recurses on its slots
          (mono-body (recurse poly-body local-env)))
     (iter
       (with body = mono-body)
-      (for (binding . initform) in (lexenv-monomorphic-values local-env))
+      (for (binding . initform) in (monomorphic-values local-env))
       (for def = (make-monomorphic-def binding initform))
       (setf body (make-instance 'let
                                 :def def
-                                :type (expr-type body)
+                                :type (type body)
                                 :body body))
       (finally (return body)))))
 
 (define-monomorphize if
-  (let* ((predicate (recurse (if-predicate if)))
-         (then-case (recurse (if-then-case if)))
-         (else-case (recurse (if-else-case if)))
-         (return-type (expr-type then-case)))
+  (let* ((predicate (recurse (predicate if)))
+         (then-case (recurse (then-case if)))
+         (else-case (recurse (else-case if)))
+         (return-type (type then-case)))
     (make-instance 'if
                    :type return-type
                    :predicate predicate
@@ -237,14 +238,14 @@ defines a method for the class `FUNCALL' which recurses on its slots
 
 (define-monomorphize primop
   (make-instance 'primop
-                 :type (expr-type primop)
-                 :op (primop-op primop)
-                 :args (recurse (primop-args primop))))
+                 :type (type primop)
+                 :op (op primop)
+                 :args (recurse (args primop))))
 
 (define-monomorphize prog2
-  (let* ((side-effect (recurse (prog2-side-effect prog2)))
-         (return-value (recurse (prog2-return-value prog2)))
-         (return-type (expr-type return-value)))
+  (let* ((side-effect (recurse (side-effect prog2)))
+         (return-value (recurse (return-value prog2)))
+         (return-type (type return-value)))
     (make-instance 'prog2
                    :type return-type
                    :side-effect side-effect
@@ -255,13 +256,13 @@ defines a method for the class `FUNCALL' which recurses on its slots
   "returns a `IR1:EXPR' that is like `PROGRAM', except all polymorphic values are replacecd with equivalent monomorphic values"
   (iter
     (with lexenv = (make-instance 'lexenv))
-    (for def in-vector (program-definitions program))
+    (for def in-vector (definitions program))
     (push-poly-obj lexenv def)
     (finally
      (iter
-       (with monomorphic-entry = (monomorphize (program-entry program) lexenv))
+       (with monomorphic-entry = (monomorphize (entry program) lexenv))
        (with monomorphic-defs = (adjustable-vector definition))
-       (for (binding . initform) in (lexenv-monomorphic-values lexenv))
+       (for (binding . initform) in (monomorphic-values lexenv))
        (vector-push-extend (make-monomorphic-def binding initform)
                            monomorphic-defs)
        (finally (return-from monomorphize-program

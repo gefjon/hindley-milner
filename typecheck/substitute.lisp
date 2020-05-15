@@ -25,15 +25,15 @@
 (defun instantiate (type-scheme)
   (flet ((make-substitution-cell (type-var)
            (cons type-var (new-type-variable type-var))))
-    (apply-substitution (mapcar #'make-substitution-cell (type-scheme-bindings type-scheme))
-                        (type-scheme-body type-scheme))))
+    (apply-substitution (mapcar #'make-substitution-cell (bindings type-scheme))
+                        (body type-scheme))))
 
 (defgeneric free-type-variables (within)
   (:documentation "returns a set of type-variables"))
 
 (defmethod free-type-variables ((within type-scheme))
-  (set-difference (free-type-variables (type-scheme-body within))
-                  (type-scheme-bindings within)))
+  (set-difference (free-type-variables (body within))
+                  (bindings within)))
 
 (defmethod free-type-variables ((within type-variable))
   (list within))
@@ -48,8 +48,8 @@
     (adjoining element)))
 
 (defmethod free-type-variables ((within arrow))
-  (union (free-type-variables (arrow-inputs within))
-         (free-type-variables (arrow-output within))))
+  (union (free-type-variables (inputs within))
+         (free-type-variables (output within))))
 
 ;; this is a named function (rather than a method on
 ;; `FREE-TYPE-VARIABLES') because `TYPE-ENV' names a type rather than

@@ -26,7 +26,7 @@
 
 (|:| #'find-variable (-> (symbol lexenv) variable))
 (defun find-variable (name lexenv)
-  (or (find name lexenv :test #'eq :key #'variable-name)
+  (or (find name lexenv :test #'eq :key #'name)
       (error "undefined variable ~s" name)))
 
 (|:| #'compute-intermediate-terms (-> (intermediate-terms expr lexenv) expr))
@@ -68,7 +68,7 @@ to preserve EQ-ness of variables"))
 ;;; transform-type methods
 
 (defmethod transform-type ((type ir1:type-primitive))
-  (ecase (ir1:type-primitive-name type)
+  (ecase (ir1:name type)
         (boolean :boolean)
         (fixnum :fixnum)
         (null :void)))
@@ -86,7 +86,7 @@ to preserve EQ-ness of variables"))
                               &allow-other-keys)
   (make-instance 'throw
                  :cont current-continuation
-                 :arg (find-variable (ir1:variable-name expr) lexenv)))
+                 :arg (find-variable (ir1:name expr) lexenv)))
 
 (|:| #'funcall-vars-and-intermediate-terms
      (-> (ir1:funcall lexenv)
@@ -110,9 +110,9 @@ terms that must be computed prior to the call."
                                 lexenv
                               &allow-other-keys)
   (multiple-value-bind (arg-vars arg-terms)
-      (arg-vec-vars-and-terms (ir1:funcall-args expr) lexenv)
+      (arg-vec-vars-and-terms (ir1:args expr) lexenv)
     (multiple-value-bind (func-var func-terms)
-        (transform-to-var (ir1:funcall-function expr) :lexenv lexenv)
+        (transform-to-var (ir1:func expr) :lexenv lexenv)
       (let* ((apply-expr (make-instance 'apply
                                         :func func-var
                                         :args arg-vars
@@ -131,17 +131,17 @@ terms that must be computed prior to the call."
                                 current-continuation
                                 lexenv
                               &allow-other-keys)
-  (let* ((old-def (ir1:let-def expr))
-         (var-name (ir1:definition-name old-def))
-         (var-type (transform-type (ir1:monomorphic-type old-def)))
+  (let* ((old-def (ir1:def expr))
+         (var-name (ir1:name old-def))
+         (var-type (transform-type (ir1:type old-def)))
          (var (make-instance 'local
                              :name var-name
                              :type var-type))
          (bound-env (cons var lexenv))
-         (body (transform-to-expr (ir1:let-body expr)
+         (body (transform-to-expr (ir1:body expr)
                                   :current-continuation current-continuation
                                   :lexenv bound-env))
-         (binding-form (transform-binding (ir1:definition-initform old-def)
+         (binding-form (transform-binding (ir1:initform old-def)
                                           var
                                           body
                                           :lexenv lexenv)))
@@ -153,13 +153,13 @@ terms that must be computed prior to the call."
                                 lexenv
                               &allow-other-keys)
   (multiple-value-bind (pred-var compute-pred)
-      (transform-to-var (ir1:if-predicate expr) :lexenv lexenv)
+      (transform-to-var (ir1:predicate expr) :lexenv lexenv)
     (let* ((then-expr
-             (transform-to-expr (ir1:if-then-case expr)
+             (transform-to-expr (ir1:then-case expr)
                                 :current-continuation current-continuation
                                 :lexenv lexenv))
            (else-expr
-             (transform-to-expr (ir1:if-else-case expr)
+             (transform-to-expr (ir1:else-case expr)
                                 :current-continuation current-continuation
                                 :lexenv lexenv))
            (if-expr
@@ -174,18 +174,18 @@ terms that must be computed prior to the call."
                                 current-continuation
                                 lexenv
                               &allow-other-keys)
-  (let* ((ret-expr (transform-to-expr (ir1:prog2-return-value expr)
+  (let* ((ret-expr (transform-to-expr (ir1:return-value expr)
                                       :current-continuation current-continuation
                                       :lexenv lexenv))
          (ignore-cont-name (make-continuation-arg 'prog2))
-         (side-effect-expr (transform-to-expr (ir1:prog2-side-effect expr)
+         (side-effect-expr (transform-to-expr (ir1:side-effect expr)
                                               :current-continuation ignore-cont-name
                                               :lexenv lexenv))
          (ignore-var (make-instance 'local
                                     :name (make-gensym 'ignore)
                                     :type (transform-type
-                                           (ir1:expr-type
-                                            (ir1:prog2-side-effect expr)))))
+                                           (ir1:type
+                                            (ir1:side-effect expr)))))
          (ignore-cont-defn (make-instance 'continuation
                                           :name ignore-cont-name
                                           :arg ignore-var
@@ -202,7 +202,7 @@ terms that must be computed prior to the call."
                               &allow-other-keys)
   (let* ((var (make-instance 'local
                              :name (make-gensym 'tmp)
-                             :type (transform-type (ir1:expr-type expr))))
+                             :type (transform-type (ir1:type expr))))
          (body (make-instance 'throw
                               :arg var
                               :cont current-continuation)))
@@ -214,14 +214,14 @@ terms that must be computed prior to the call."
                              &key
                                lexenv
                              &allow-other-keys)
-  (find-variable (ir1:variable-name expr) lexenv))
+  (find-variable (ir1:name expr) lexenv))
 
 (defmethod transform-to-var ((expr ir1:expr)
                              &key
                              &allow-other-keys)
   (let* ((variable (make-instance 'local
                                   :name (make-gensym 'var)
-                                  :type (transform-type (ir1:expr-type expr)))))
+                                  :type (transform-type (ir1:type expr)))))
     (values variable (acons variable expr ()))))
 
 ;;; transform-binding methods
@@ -229,8 +229,8 @@ terms that must be computed prior to the call."
 (|:| #'lambda-arg-vars (-> (ir1:lambda) (vector variable)))
 (defun lambda-arg-vars (ir1-lambda)
   (iter
-    (for arg-name in-vector (ir1:lambda-bindings ir1-lambda))
-    (for arg-type in-vector (ir1:arrow-inputs (ir1:expr-type ir1-lambda)))
+    (for arg-name in-vector (ir1:bindings ir1-lambda))
+    (for arg-type in-vector (ir1:inputs (ir1:type ir1-lambda)))
     (collect (make-instance 'local
                             :name arg-name
                             :type (transform-type arg-type))
@@ -251,10 +251,10 @@ terms that must be computed prior to the call."
   (let* ((continuation-arg (make-continuation-arg 'return))
          (args (lambda-arg-vars initform))
          (fenv (augment-lexenv-for-func lexenv args))
-         (fbody (transform-to-expr (ir1:lambda-body initform)
+         (fbody (transform-to-expr (ir1:body initform)
                                    :current-continuation continuation-arg
                                    :lexenv fenv))
-         (function (make-instance 'function
+         (function (make-instance 'func
                                :name var
                                :arglist args
                                :continuation-arg continuation-arg
@@ -267,7 +267,7 @@ terms that must be computed prior to the call."
                               &key &allow-other-keys)
   (let* ((constant (make-instance 'constant
                                    :name var
-                                   :value (ir1:quote-it initform))))
+                                   :value (ir1:it initform))))
     (make-instance 'bind
                    :defn constant
                    :in body)))
@@ -275,10 +275,10 @@ terms that must be computed prior to the call."
 (defmethod transform-binding ((initform ir1:primop) var body
                               &key lexenv &allow-other-keys)
   (multiple-value-bind (arg-vars arg-terms)
-      (arg-vec-vars-and-terms (ir1:primop-args initform) lexenv)
+      (arg-vec-vars-and-terms (ir1:args initform) lexenv)
     (let* ((let-expr (make-instance 'let
                                     :var var
-                                    :prim-op (ir1:primop-op initform)
+                                    :prim-op (ir1:op initform)
                                     :args arg-vars
                                     :in body)))
       (compute-intermediate-terms arg-terms
@@ -308,18 +308,18 @@ terms that must be computed prior to the call."
 
 (defun cps-transform (typed-ir1-program)
   (iter
-    (for def in-vector (ir1:program-definitions typed-ir1-program))
+    (for def in-vector (ir1:definitions typed-ir1-program))
     (for global = (make-instance 'global
-                                 :name (ir1:definition-name def)
-                                 :type (transform-type (ir1:monomorphic-type def))))
-    (collect (cons global (ir1:definition-initform def))
+                                 :name (ir1:name def)
+                                 :type (transform-type (ir1:type def))))
+    (collect (cons global (ir1:initform def))
       into intermediate-terms
       at beginning)
     (collect global into lexenv at beginning)
     (finally
      (return
        (compute-intermediate-terms intermediate-terms
-                                   (transform-to-expr (ir1:program-entry typed-ir1-program)
+                                   (transform-to-expr (ir1:entry typed-ir1-program)
                                                       :lexenv lexenv
                                                       :current-continuation *exit-continuation*)
                                    lexenv)))))

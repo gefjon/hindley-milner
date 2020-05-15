@@ -16,8 +16,8 @@
 (|:| #'parse-definition (-> (syntax:definition) untyped))
 (defun parse-definition (definition)
   (make-instance 'untyped
-                 :name (syntax:definition-binding definition)
-                 :initform (parse (syntax:definition-value definition))))
+                 :name (syntax:binding definition)
+                 :initform (parse (syntax:value definition))))
 
 (|:| #'transform-implicit-progn (-> ((vector syntax:clause)) expr))
 (defun transform-implicit-progn (progn)
@@ -38,15 +38,15 @@
 
 (defmethod parse ((funcall syntax:funcall))
   (make-instance 'funcall
-                 :function (parse (syntax:funcall-function funcall))
-                 :args (parse (syntax:funcall-args funcall))))
+                 :func (parse (syntax:func funcall))
+                 :args (parse (syntax:args funcall))))
 
 (defmethod parse ((lambda syntax:lambda))
   (make-instance 'lambda
-                 :bindings (make-array (length (syntax:lambda-bindings lambda))
+                 :bindings (make-array (length (syntax:bindings lambda))
                                        :element-type 'symbol
-                                       :initial-contents (syntax:lambda-bindings lambda))
-                 :body (transform-implicit-progn (syntax:lambda-body lambda))))
+                                       :initial-contents (syntax:bindings lambda))
+                 :body (transform-implicit-progn (syntax:body lambda))))
 
 (defmethod parse ((let syntax:let))
   "transform (let ((a b) (c d)) e f) into (let a b (let c d (progn e f)))"
@@ -54,36 +54,35 @@
            (make-instance 'let
                           :def (parse-definition definition)
                           :body body)))
-    (reduce #'let-from-definition (syntax:let-bindings let)
+    (reduce #'let-from-definition (syntax:bindings let)
             :from-end t
-            :initial-value (transform-implicit-progn (syntax:let-body let)))))
+            :initial-value (transform-implicit-progn (syntax:body let)))))
 
 (defmethod parse ((if syntax:if))
   "boring. recurse on `PARSE'"
   (make-instance 'if
-                 :predicate (parse (syntax:if-predicate if))
-                 :then-case (parse (syntax:if-then-case if))
-                 :else-case (parse (syntax:if-else-case if))))
+                 :predicate (parse (syntax:predicate if))
+                 :then-case (parse (syntax:then-case if))
+                 :else-case (parse (syntax:else-case if))))
 
 (defmethod parse ((primop syntax:primop))
   "boring. recurse on `PARSE'"
   (make-instance 'primop
-                 :op (syntax:primop-op primop)
-                 :args (parse (syntax:primop-args primop))))
+                 :op (syntax:op primop)
+                 :args (parse (syntax:args primop))))
 
 (defmethod parse ((variable syntax:variable))
   (make-instance 'variable
-                 :name (syntax:variable-name variable)))
+                 :name (syntax:name variable)))
 
 (defmethod parse ((quote syntax:quote))
   (make-instance 'quote
-                 :it (syntax:quote-it quote)))
+                 :it (syntax:it quote)))
 
-(declaim (ftype (function (syntax:program) program)
-                parse-program))
+(|:| #'parse-program (-> (syntax:program) program))
 (defun parse-program (program)
   "transform a `SYNTAX:PROGRAM' into an `IR1:EXPR'"
   (make-instance 'program
                  :definitions (map '(vector definition) #'parse-definition
-                                   (syntax:program-definitions program))
-                 :entry (parse (syntax:program-entry program))))
+                                   (syntax:definitions program))
+                 :entry (parse (syntax:entry program))))
