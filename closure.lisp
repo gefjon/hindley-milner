@@ -4,8 +4,6 @@
    :hindley-milner/prologue
    :iterate
    :cl)
-  (:import-from :genhash
-   :make-generic-hash-table :hashref :generic-hash-table-count)
   (:shadow :sequence)
   (:import-from :alexandria
    :make-gensym)
@@ -21,7 +19,7 @@
     "a `CLOSURE-ENV' which will map variables for the current function to close over to enclosed variables.")
 
 (defmacro with-closure-env (&body body)
-  `(let* ((*closure-env* (make-generic-hash-table :test #'eq)))
+  `(let* ((*closure-env* (adjustable-vector closure)))
      ,@body))
 
 (define-special *local-vars* local-vars
@@ -46,9 +44,7 @@ elements)"))
 
 (|:| #'already-enclosed-p (-> (local) boolean))
 (defun already-enclosed-p (var)
-  (multiple-value-bind (closure present-p) (hashref var *closure-env*)
-    (declare (ignore closure))
-    present-p))
+  (not (not (find var *closure-env* :key #'name))))
 
 (|:| #'should-close-over (-> (variable) boolean))
 (defun should-close-over (variable)
@@ -65,7 +61,10 @@ elements)"))
 (defun enclose-var (var)
   "returns a `VARIABLE' that is suitable to replace VAR"
   (cl:if (should-close-over var)
-         (ensure-get var *closure-env* (make-closure-for-local var))
+         (ensure-find (name var)
+                      *closure-env*
+                      (make-closure-for-local var)
+                      :key #'name)
          var))
 
 (|:| #'enclose-arglist (-> ((vector variable)) (vector variable)))
@@ -127,5 +126,5 @@ elements)"))
   (with-closure-env
     (with-locals ()
       (let* ((new-program (collect-closure-vars program)))
-        (assert (zerop (generic-hash-table-count *closure-env*)))
+        (assert (zerop (length *closure-env*)))
         new-program))))

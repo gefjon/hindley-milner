@@ -39,7 +39,7 @@
     ((name variable)))
 
 (deftype closure-env ()
-  '(hash-map-of local closure))
+  '(adjustable-vector closure))
 
 (define-class procedure
     ((body expr)

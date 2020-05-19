@@ -22,6 +22,7 @@
    :ensure-get
    :sequence
    :define-special
+   :ensure-find
 
    ;; reexports from gefjon-utils
    :define-class
@@ -109,3 +110,11 @@ for example: (define-special *foo* fixnum)"
      (defvar ,name)
      (eval-when (:compile-toplevel :load-toplevel :execute)
        (setf (documentation ',name 'cl:variable) ,docstring))))
+
+(defmacro ensure-find (search-for vector default &rest keys &key &allow-other-keys)
+  `(let* ((vector ,vector)
+          (found (find ,search-for vector ,@keys)))
+     (or found
+         (let* ((default ,default))
+           (vector-push-extend default vector)
+           default))))
