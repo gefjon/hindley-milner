@@ -1,6 +1,6 @@
 (uiop:define-package :hindley-milner/cps/expr
   (:mix
-   :hindley-milner/cps/type
+   :hindley-milner/repr-type
    :hindley-milner/prologue
    :cl)
   (:import-from :hindley-milner/primop
