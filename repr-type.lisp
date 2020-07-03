@@ -7,4 +7,4 @@
 (cl:in-package :hindley-milner/repr-type)
 
 (define-c-enum type
-  :void :boolean :fixnum :function :continuation)
+  :void :boolean :fixnum :function :continuation :closure-env)

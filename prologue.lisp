@@ -23,6 +23,7 @@
    :sequence
    :define-special
    :ensure-find
+   :format-gensym
 
    ;; reexports from gefjon-utils
    :define-class
@@ -118,3 +119,7 @@ for example: (define-special *foo* fixnum)"
          (let* ((default ,default))
            (vector-push-extend default vector)
            default))))
+
+(|:| #'format-gensym (-> (string &rest t) symbol))
+(defun format-gensym (fmt &rest args)
+  (gensym (apply #'format nil fmt args)))

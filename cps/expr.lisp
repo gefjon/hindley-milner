@@ -39,7 +39,8 @@
     ((name variable)))
 
 (deftype closure-env ()
-  '(adjustable-vector closure))
+  "A vector of conses which map variables from the enclosing scope to closure vars."
+  '(adjustable-vector (cons variable closure)))
 
 (define-class procedure
     ((body expr)

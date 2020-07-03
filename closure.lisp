@@ -44,7 +44,7 @@ elements)"))
 
 (|:| #'already-enclosed-p (-> (local) boolean))
 (defun already-enclosed-p (var)
-  (not (not (find var *closure-env* :key #'name))))
+  (not (not (find var *closure-env* :key #'car))))
 
 (|:| #'should-close-over (-> (variable) boolean))
 (defun should-close-over (variable)
@@ -61,10 +61,10 @@ elements)"))
 (defun enclose-var (var)
   "returns a `VARIABLE' that is suitable to replace VAR"
   (cl:if (should-close-over var)
-         (ensure-find (name var)
-                      *closure-env*
-                      (make-closure-for-local var)
-                      :key #'name)
+         (cdr (ensure-find var
+                           *closure-env*
+                           (cons var (make-closure-for-local var))
+                           :key #'car))
          var))
 
 (|:| #'enclose-arglist (-> ((vector variable)) (vector variable)))
@@ -98,7 +98,7 @@ elements)"))
   (convert-func-body defn (list (arg defn))))
 
 (defmethod closurify-defn ((defn func))
-  (convert-func-body defn (cons (arglist defn)
+  (convert-func-body defn (cons (continuation-arg defn)
                                 (coerce (arglist defn) 'list))))
 
 (defmethod closurify-defn ((defn constant))

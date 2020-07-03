@@ -14,6 +14,8 @@
    :cps-transform)
   (:import-from :hindley-milner/closure
    :make-closures-explicit)
+  (:import-from :hindley-milner/three-address/trans
+   :three-address-transform-program)
   (:export :compile))
 (cl:in-package :hindley-milner/compile)
 
@@ -23,5 +25,6 @@
          (typed (infer-program-types ir1))
          (monomorphic (monomorphize-program typed))
          (cps (cps-transform monomorphic))
-         (enclosed (make-closures-explicit cps)))
-    enclosed))
+         (enclosed (make-closures-explicit cps))
+         (three-address (three-address-transform-program enclosed)))
+    three-address))
