@@ -5,7 +5,8 @@
    :hindley-milner/prologue
    :cl)
   (:export
-   :register :register-name :register-type
+   :register
+   :reg :name :type
 
    :index :closure-env
 
@@ -19,9 +20,10 @@
    :copy :dst :src
    :primop :op :dst :args
    :param :src
-   :call :condition :arity :closure-env :continuation :func
+   :set-closure-env :src
+   :call :condition :func
    
-   :procedure :args :name :body :continuation-arg
+   :procedure :args :name :body :closure-env
 
    :program :procs :entry :globals :constants
 
@@ -58,19 +60,14 @@
             (dst register)
             (args (vector register))))
    (param ((src register)))
-   (call ((condition ; `t' denotes always taken, `nil' denotes never taken
-           (or register boolean))
-          (arity index)
-          (closure-env ; `nil' denotes the current env
-           (or register null))
-          (continuation ; `nil' denotes the current continuation
-           (or register index null))
+   (set-closure-env ((src register)))
+   (call ((condition ; `t' denotes always taken
+                     (or register (eql t)))
           (func (or register index))))))
 
 (define-class procedure
     ((name symbol)
      (args (vector register))
-     (continuation-arg (or register null))
      (closure-env closure-env)
      (body (adjustable-vector instr))))
 
