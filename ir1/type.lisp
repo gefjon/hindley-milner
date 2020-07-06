@@ -30,9 +30,9 @@
 (subst:recurse-on-slots arrow
   inputs output)
 
-(defvar *boolean* (make-instance 'type-primitive :name 'cl:boolean))
-(defvar *fixnum* (make-instance 'type-primitive :name 'cl:fixnum))
-(defvar *void* (make-instance 'type-primitive :name 'cl:null))
+(defvar *boolean* (make-instance 'type-primitive :name :boolean))
+(defvar *fixnum* (make-instance 'type-primitive :name :fixnum))
+(defvar *void* (make-instance 'type-primitive :name :void))
 
 (defun new-type-variable (&optional (name "type-variable-"))
   (let ((name-string (etypecase name
