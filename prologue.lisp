@@ -11,7 +11,6 @@
    :|:| :-> :void :optional)
   (:import-from :genhash
    :hashref)
-  (:shadow :sequence)
   (:import-from :trivial-types
    :tuple)
   (:export
@@ -20,7 +19,6 @@
    :define-c-enum
    :hash-map-of
    :ensure-get
-   :sequence
    :define-special
    :ensure-find
    :format-gensym
@@ -97,10 +95,6 @@ supplied value, starting at 0 if no value is supplied."
      (multiple-value-bind (value present-p) (hashref key map)
        (if present-p value
            (setf (hashref key map) ,default)))))
-
-(deftype sequence (&optional element-type)
-  (declare (ignore element-type))
-  'cl:sequence)
 
 (defmacro define-special (name type &optional (docstring "special variable defined by `DEFINE-SPECIAL'"))
   "define a special variable NAME of TYPE which is globally unbound.

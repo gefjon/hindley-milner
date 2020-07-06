@@ -4,6 +4,7 @@
    :hindley-milner/primop
    :hindley-milner/prologue
    :cl)
+  (:shadow :type)
   (:export
    :register
    :reg :name :type
@@ -21,6 +22,7 @@
    :primop :op :dst :args
    :param :src
    :set-closure-env :src
+   :function-pointer :dst :func
    :call :condition :func
    
    :procedure :args :name :body :closure-env
@@ -61,6 +63,8 @@
             (args (vector register))))
    (param ((src register)))
    (set-closure-env ((src register)))
+   (function-pointer ((dst register)
+                      (func symbol)))
    (call ((condition ; `t' denotes always taken
                      (or register (eql t)))
           (func (or register index))))))

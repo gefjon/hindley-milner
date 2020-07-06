@@ -4,7 +4,6 @@
    :hindley-milner/prologue
    :iterate
    :cl)
-  (:shadow :sequence)
   (:import-from :alexandria
    :make-gensym)
   (:import-from :trivial-types
