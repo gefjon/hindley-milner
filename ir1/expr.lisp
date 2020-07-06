@@ -3,7 +3,8 @@
    :hindley-milner/ir1/type
    :hindley-milner/prologue
    :cl)
-  (:import-from :hindley-milner/subst) ;; for `RECURSE-ON-SLOTS'
+  (:import-from :hindley-milner/subst
+   :subst-all-slots :subst-atom)
   (:import-from :hindley-milner/primop
    :operator)
   (:shadow :variable :quote :funcall :lambda :let :if :prog2)
@@ -31,18 +32,17 @@
                          (initform expr))
   ((untyped ())
    (polymorphic ((scheme type-scheme)))
-   (monomorphic ((type type)))))
-
-(subst:recurse-on-slots untyped
-  name initform)
-(subst:recurse-on-slots polymorphic
-  name initform scheme)
-(subst:recurse-on-slots monomorphic
-  name initform type)
+   (monomorphic ((type type))))
+  :superclasses (subst-all-slots))
 
 (define-enum expr ((type type :may-init-unbound t))
-  ((variable ((name symbol)))
-   (quote ((it t)))
+  (;; `variable' and `quote' must subclass `subst-atom' so
+   ;; that their slots are not substituted; this overwrites
+   ;; the method from `expr' subclassing `subst-all-slots'.
+   (variable ((name symbol))
+             :superclasses (subst-atom))
+   (quote ((it t))
+          :superclasses (subst-atom))
    (funcall ((func expr)
              (args (vector expr))))
    (lambda ((bindings (vector symbol))
@@ -55,32 +55,13 @@
    (primop ((op operator)
             (args (vector expr))))
    (prog2 ((side-effect expr)
-           (return-value expr)))))
+           (return-value expr))))
+  :superclasses (subst-all-slots))
 
 ;;;; transformations from surface-syntax to ir1:
 ;; - implicit progns (e.g. in let or lambda) are made explicit
 
-(subst:recurse-on-slots expr
-  type)
-;; this method is superseded by those below, applying only to `QUOTE'
-;; and `VARIABLE', so each `RECURSE-ON-SLOTS' below must also list
-;; `TYPE'
-(subst:recurse-on-slots funcall
-  type func args)
-(subst:recurse-on-slots lambda
-  type bindings body)
-(subst:recurse-on-slots let
-  type def body)
-(subst:recurse-on-slots if
-  type predicate then-case else-case)
-(subst:recurse-on-slots primop
-  type args)
-(subst:recurse-on-slots prog2
-  type side-effect return-value)
-
 (define-class program
     ((definitions (vector definition))
-     (entry expr)))
-
-(subst:recurse-on-slots program
-  definitions entry)
+     (entry expr))
+  :superclasses (subst-all-slots))

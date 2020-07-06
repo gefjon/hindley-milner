@@ -22,13 +22,11 @@
   ((type-variable ((name symbol)))
    (type-primitive ((name t)))
    (arrow ((inputs (vector type))
-           (output type)))))
+           (output type))
+          :superclasses (subst-all-slots))))
 
 ;; note that `SUBST' does not recurse into `TYPE-PRIMITIVE', because
 ;; `TYPE-PRIMITIVE-NAME's should not be substituted
-
-(subst:recurse-on-slots arrow
-  inputs output)
 
 (defvar *boolean* (make-instance 'type-primitive :name :boolean))
 (defvar *fixnum* (make-instance 'type-primitive :name :fixnum))
@@ -44,10 +42,8 @@
 
 (define-class type-scheme
     ((bindings (proper-list type-variable))
-     (body type)))
-
-(subst:recurse-on-slots type-scheme
-  bindings body)
+     (body type))
+  :superclasses (subst-all-slots))
 
 (deftype type-env ()
   "maps term variables to their type schemes"

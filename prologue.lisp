@@ -11,12 +11,13 @@
    :|:| :-> :void :optional)
   (:import-from :genhash
    :hashref)
+  (:import-from :alexandria
+   :remove-from-plist)
   (:import-from :trivial-types
    :tuple)
   (:export
    :define-enum
    :extend-enum
-   :define-c-enum
    :hash-map-of
    :ensure-get
    :define-special
@@ -30,7 +31,7 @@
    :|:| :-> :void :optional))
 (cl:in-package :hindley-milner/prologue)
 
-(defmacro define-enum (type-name common-slots variants)
+(defmacro define-enum (type-name common-slots variants &rest define-class-options)
   "define an enum or sum type named TYPE-NAME with COMMON-SLOTS.
 
 this compiles into a superclass TYPE-NAME and a subtype for each of
@@ -44,7 +45,7 @@ list of the form (VARIANT-NAME UNIQUE-SLOTS).
 UNIQUE-SLOTS is a list of slot-descriptors, each of which is a list of
 the form (SLOT-NAME SLOT-TYPE `&KEY' INITFORM MAY-INIT-UNBOUND
 ACCESSOR). the `&KEY' args all have sensible defaults."
-  `(progn (define-class ,type-name ,common-slots)
+  `(progn (define-class ,type-name ,common-slots ,@define-class-options)
           (extend-enum ,type-name ,variants)))
 
 (defmacro extend-enum (enum-name variants)
@@ -52,38 +53,18 @@ ACCESSOR). the `&KEY' args all have sensible defaults."
 
 this just defines subclasses of ENUM-NAME."
   (flet ((define-variant (variant)
-           (destructuring-bind (variant-name unique-slots) variant
+           (destructuring-bind (variant-name unique-slots
+                                &rest options &key superclasses &allow-other-keys)
+               variant
              `(define-class ,variant-name
                 ,unique-slots
-                :superclasses (,enum-name)))))
+                ;; put declared superclasses before the enum class, to
+                ;; allow mixins on variants which supersede methods
+                ;; from the enum class.
+                :superclasses (,@superclasses ,enum-name)
+                ,@(remove-from-plist options :superclasses)))))
     `(progn
        ,@(mapcar #'define-variant variants))))
-
-(defmacro define-c-enum (name &rest variants)
-  "define a c-style enum, which associates several keywords with integer values.
-
-each of the VARIANTS should be either:
-- a keyword
-- a list of (KEYWORD VALUE), where VALUE is an integer.
-
-as in c, unsupplied values will increment by one from the last
-supplied value, starting at 0 if no value is supplied."
-  (let ((idx -1))
-    (flet ((variant-name (variant)
-             (etypecase variant
-               (keyword variant)
-               ((tuple keyword integer) (first variant))))
-           (variant-case-clause (variant)
-             (etypecase variant
-               (keyword (list variant (incf idx)))
-               ((tuple keyword integer)
-                (setf idx (second variant))
-                variant))))
-      `(progn (deftype ,name ()
-                '(member ,@(mapcar #'variant-name variants)))
-              (defun ,(symbol-concatenate name '-to-int) (,name)
-                (ecase ,name
-                  ,@(mapcar #'variant-case-clause variants)))))))
 
 (deftype hash-map-of (&optional key value)
   (declare (ignore key value))
