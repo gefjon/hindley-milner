@@ -6,28 +6,30 @@
    :cl)
   (:shadow :type)
   (:export
-   :register
-   :reg :name :type
+   :register :name :type
+   :local :global
 
-   :index :closure-env
+   :index
 
    :instr
-   :dead :reg
-   :read-global :dst :global
-   :set-global :global :src
+   :constant :dst :value
+   :read-global :dst :src
+   :set-global :dst :src
    :read-closure-env :dst :index
-   :make-closure-env :dst :procedure :elts
-   :load-constant :dst :index
+   :make-closure :dst :func :elts
    :copy :dst :src
    :primop :op :dst :args
-   :param :src
-   :set-closure-env :src
-   :function-pointer :dst :func
-   :call :condition :func
+   :pointer-cast :dst :src
+   :branch :condition :label
+   :call :condition :func :args
+
+   :basic-block :label :body
    
    :procedure :args :name :body :closure-env
 
-   :program :procs :entry :globals :constants
+   :global-def :name :initform
+
+   :program :procs :entry :globals
 
    ;; reexports
    :type :operator)
@@ -35,48 +37,57 @@
 (cl:in-package :hindley-milner/three-address/expr)
 
 (define-enum register ((name symbol)
-                       (type type))
-  ((reg ())))
-
-(deftype closure-env ()
-  '(vector type))
+                        (type type))
+  ((local ())
+   (global ())))
 
 (deftype index ()
   '(and unsigned-byte fixnum))
 
 (define-enum instr ()
-  ((dead ((reg register)))
-   (read-global ((dst register)
-                 (global index)))
-   (set-global ((global index)
-                (src register)))
-   (read-closure-env ((dst register)
+  ((constant ((dst local)
+              (value t)))
+   (read-global ((dst local)
+                 (src global)))
+   (set-global ((dst global)
+                (src local)))
+   (read-closure-env ((dst local)
+                      (env local)
                       (index index)))
-   (make-closure-env ((dst register)
-                      (elts (vector register))))
-   (load-constant ((dst register)
-                   (index index)))
-   (copy ((dst register)
-          (src register)))
+   (make-closure ((dst local)
+                  (func symbol)
+                  (elts (vector local))))
+   (copy ((dst local)
+          (src local)))
+   (pointer-cast ((dst local)
+                  (src local)))
    (primop ((op operator)
-            (dst register)
-            (args (vector register))))
-   (param ((src register)))
-   (set-closure-env ((src register)))
-   (function-pointer ((dst register)
-                      (func symbol)))
+            (dst local)
+            (args (vector local))))
+   (branch ((condition ; `t' denotes always taken
+                       (or local (eql t)))
+            (label symbol)))
    (call ((condition ; `t' denotes always taken
-                     (or register (eql t)))
-          (func (or register index))))))
+                     (or local (eql t)))
+          (func local)
+          (args (vector local))))))
+
+(define-class basic-block
+    ((label symbol)
+     (body (adjustable-vector instr))))
 
 (define-class procedure
     ((name symbol)
-     (args (vector register))
+     (args (vector local))
      (closure-env closure-env)
-     (body (adjustable-vector instr))))
+     (body (adjustable-vector basic-block))))
+
+(define-class global-def
+    ((name global)
+     (initform ; `nil' denotes 0-initialized and non-constant
+               (optional t))))
 
 (define-class program
     ((procs (adjustable-vector procedure))
-     (globals (adjustable-vector type))
-     (entry procedure)
-     (constants (adjustable-vector t))))
+     (globals (adjustable-vector global))
+     (entry procedure)))
