@@ -7,7 +7,7 @@
    :symbol-concatenate
    :define-class
    :adjustable-vector :make-adjustable-vector :specialized-vector
-   :shallow-copy
+   :shallow-copy :map-slots
    :|:| :-> :void :optional)
   (:import-from :genhash
    :hashref)
@@ -27,7 +27,7 @@
    ;; reexports from gefjon-utils
    :define-class
    :adjustable-vector :make-adjustable-vector :specialized-vector
-   :shallow-copy
+   :shallow-copy :map-slots
    :|:| :-> :void :optional))
 (cl:in-package :hindley-milner/prologue)
 
