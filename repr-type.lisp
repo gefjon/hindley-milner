@@ -2,9 +2,31 @@
   (:mix
    :hindley-milner/prologue
    :cl)
-  (:shadow :type)
-  (:export :type))
+  (:import-from :alexandria :symbolicate)
+  (:shadow :function)
+  (:export
+   :primitive-type
+   :*void* :*boolean* :*fixnum* :*opaque-ptr*
+   :repr-type
+   :primitive :primitive
+   :function :inputs
+   :closure-env :elts))
 (cl:in-package :hindley-milner/repr-type)
 
-(define-c-enum type
-  :void :boolean :fixnum :function :continuation :closure-env)
+(deftype primitive-type ()
+  '(member :void :boolean :fixnum :opaque-ptr))
+
+(define-enum repr-type ()
+  ((primitive ((primitive primitive-type)))
+   (function ((inputs (vector repr-type))))
+   (closure-env ((elts (vector repr-type))))))
+
+(defmacro define-primitives (&rest names)
+  (flet ((defprim (name)
+           (check-type name symbol)
+           `(defvar ,(symbolicate '* (symbol-name name) '*)
+              (make-instance 'primitive
+                             :primitive ,name))))
+    `(progn ,@(mapcar #'defprim names))))
+
+(define-primitives :void :boolean :fixnum :opaque-ptr)

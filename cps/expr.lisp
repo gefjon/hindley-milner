@@ -13,7 +13,7 @@
    :variable :name :type
    :global :local :closure
 
-   :closure-env
+   :closure-env-map
 
    :definition :name
    :procedure :body :closes-over
@@ -38,13 +38,13 @@
 (define-class definition
     ((name variable)))
 
-(deftype closure-env ()
+(deftype closure-env-map ()
   "A vector of conses which map variables from the enclosing scope to closure vars."
   '(adjustable-vector (cons variable closure)))
 
 (define-class procedure
     ((body expr)
-     (closes-over closure-env :may-init-unbound t))
+     (closes-over closure-env-map :may-init-unbound t))
   :superclasses (definition))
 
 (define-class func

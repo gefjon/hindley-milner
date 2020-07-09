@@ -1,6 +1,7 @@
 (uiop:define-package :hindley-milner/cps/trans
     (:mix
      :hindley-milner/cps/expr
+     :hindley-milner/repr-type
      :hindley-milner/prologue
      :iterate
      :cl)
@@ -12,11 +13,12 @@
   (:export :cps-transform :*exit-continuation*))
 (cl:in-package :hindley-milner/cps/trans)
 
-(|:| #'make-continuation-arg (-> (&optional symbol) local))
-(defun make-continuation-arg (&optional (name 'cont))
+(|:| #'make-continuation-arg (-> (symbol repr-type) local))
+(defun make-continuation-arg (name arg-type)
   (make-instance 'local
                  :name (make-gensym name)
-                 :type :continuation))
+                 :type (make-instance 'function
+                                      :inputs (specialized-vector repr-type arg-type))))
 
 (deftype intermediate-terms ()
   '(association-list variable ir1:expr))
@@ -68,14 +70,13 @@ to preserve EQ-ness of variables"))
 ;;; transform-type methods
 
 (defmethod transform-type ((type ir1:type-primitive))
-  (ecase (ir1:name type)
-        (boolean :boolean)
-        (fixnum :fixnum)
-        (null :void)))
+  (make-instance 'primitive
+                 :primitive (ir1:name type)))
 
 (defmethod transform-type ((type ir1:arrow))
-  (declare (ignorable type))
-  :function)
+  (make-instance 'function
+                 :inputs (map '(vector repr-type) #'transform-type
+                              (ir1:inputs type))))
 
 ;;; transform-to-expr methods
 
@@ -177,7 +178,8 @@ terms that must be computed prior to the call."
   (let* ((ret-expr (transform-to-expr (ir1:return-value expr)
                                       :current-continuation current-continuation
                                       :lexenv lexenv))
-         (ignore-cont-name (make-continuation-arg 'prog2))
+         (ignore-cont-name (make-continuation-arg 'prog2
+                                                  (transform-type (ir1:type (ir1:side-effect expr)))))
          (side-effect-expr (transform-to-expr (ir1:side-effect expr)
                                               :current-continuation ignore-cont-name
                                               :lexenv lexenv))
@@ -248,7 +250,8 @@ terms that must be computed prior to the call."
                               &key
                                 lexenv
                               &allow-other-keys)
-  (let* ((continuation-arg (make-continuation-arg 'return))
+  (let* ((continuation-arg (make-continuation-arg 'return
+                                                  (transform-type (ir1:output (ir1:type initform)))))
          (args (lambda-arg-vars initform))
          (fenv (augment-lexenv-for-func lexenv args))
          (fbody (transform-to-expr (ir1:body initform)
@@ -289,7 +292,8 @@ terms that must be computed prior to the call."
                               &key
                                 lexenv
                               &allow-other-keys)
-  (let* ((cont-name (make-continuation-arg))
+  (let* ((cont-name (make-continuation-arg 'cont
+                                           (transform-type (ir1:type initform))))
          (expr (transform-to-expr initform
                                   :lexenv lexenv
                                   :current-continuation cont-name))
@@ -303,7 +307,8 @@ terms that must be computed prior to the call."
 
 (defvar *exit-continuation* (make-instance 'global
                                            :name 'exit
-                                           :type :continuation)
+                                           :type (make-instance 'function
+                                                                :inputs #()))
   "the continuation to exit the program")
 
 (defun cps-transform (typed-ir1-program)
