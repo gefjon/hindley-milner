@@ -10,45 +10,39 @@
   (:shadow
    :func :variable :let :if :apply :prog2)
   (:export
-   :variable :name :type
-   :global :local :closure
-
-   :closure-env-map
-
-   :definition :name
-   :procedure :body :closes-over :arglist
+   :variable :type
+   :local :name
+   :closure :name :corresponding-local
    :constant :value
+   
+   :closure-vars
 
    :expr
    :let :var :prim-op :args :in
-   :bind :defn :in
+   :proc :name :body :closes-over :arglist :in
    :if :predicate :then-clause :else-clause
    :apply :func :args :continuation
    :throw :cont :arg))
 (cl:in-package :hindley-milner/cps/expr)
 
-(define-enum variable ((name symbol)
-                       (type type))
-  ((global ())
-   (local ())
-   (closure ())))
-
-(deftype closure-env-map ()
-  "A vector of conses which map variables from the enclosing scope to closure vars."
-  '(adjustable-vector (cons variable closure)))
-
-(define-enum definition ((name variable))
-  ((procedure ((body expr)
-               (closes-over closure-env-map :may-init-unbound t) ;; added in `closure.lisp'
-               (arglist (vector variable))))
+(define-enum variable ((type type))
+  ((local ((name symbol)))
+   (closure ((name symbol)
+             (corresponding-local local)))
    (constant ((value t)))))
+
+(deftype closure-vars ()
+  '(adjustable-vector closure))
 
 (define-enum expr ()
   ((let ((var variable)
          (prim-op operator)
          (args (vector variable))
          (in expr)))
-   (bind ((defn definition)
+   (proc ((name local)
+          (body expr)
+          (closes-over closure-vars :may-init-unbound t)
+          (arglist (vector local))
           (in expr)))
    (if ((predicate variable)
         (then-clause expr)

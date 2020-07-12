@@ -43,7 +43,7 @@ elements)"))
 
 (|:| #'already-enclosed-p (-> (local) boolean))
 (defun already-enclosed-p (var)
-  (not (not (find var *closure-env* :key #'car))))
+  (not (not (find var *closure-env* :key #'corresponding-local))))
 
 (|:| #'should-close-over (-> (variable) boolean))
 (defun should-close-over (variable)
@@ -54,16 +54,17 @@ elements)"))
 (defun make-closure-for-local (local)
   (make-instance 'closure
                  :name (name local)
-                 :type (type local)))
+                 :type (type local)
+                 :corresponding-local local))
 
 (|:| #'enclose-var (-> (variable) variable))
 (defun enclose-var (var)
   "returns a `VARIABLE' that is suitable to replace VAR"
   (cl:if (should-close-over var)
-         (cdr (ensure-find var
-                           *closure-env*
-                           (cons var (make-closure-for-local var))
-                           :key #'car))
+         (ensure-find var
+                      *closure-env*
+                      (make-closure-for-local var)
+                      :key #'corresponding-local)
          var))
 
 (|:| #'enclose-arglist (-> ((vector variable)) (vector variable)))
@@ -79,22 +80,18 @@ elements)"))
 (defgeneric closurify-defn (defn)
   (:documentation "returns a new `DEFINITION' that is like DEFN but has been converted to have explicit closure vars."))
 
-(defmethod collect-closure-vars ((expr bind))
-  (shallow-copy expr
-                :defn (closurify-defn (defn expr))
-                :in (with-additional-local (name (defn expr))
-                      (collect-closure-vars (in expr)))))
-
-(defmethod closurify-defn ((defn procedure))
-  (with-closure-env
-    (with-locals (coerce (arglist defn) 'list)
-      (shallow-copy defn
-                    :body (collect-closure-vars (body defn))
-                    :closes-over *closure-env*))))
-
-(defmethod closurify-defn ((defn constant))
-  defn)
-
+(defmethod collect-closure-vars ((expr proc))
+  (multiple-value-bind (new-body cenv)
+      (with-closure-env
+        (with-locals (coerce (arglist expr) 'list)
+          (values
+           (collect-closure-vars (body expr))
+           *closure-env*)))
+    (shallow-copy expr
+                  :body new-body
+                  :closes-over cenv
+                  :in (with-additional-local (name expr)
+                        (collect-closure-vars (in expr))))))
 
 (defmethod collect-closure-vars ((expr if))
   (shallow-copy expr

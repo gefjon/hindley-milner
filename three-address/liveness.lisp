@@ -6,7 +6,7 @@
    :iterate
    :cl)
   (:import-from :alexandria
-   :curry)
+   :curry :rcurry)
   (:export :liveness-annotate))
 (in-package :hindley-milner/three-address/liveness)
 
@@ -18,9 +18,6 @@
 (defmethod liveness-annotate ((vector vector))
   (map `(vector ,(array-element-type vector))
        #'liveness-annotate vector))
-
-(defmethod liveness-annotate ((global-def global-def))
-  global-def)
 
 (defun push-onto-vector (src dst)
   (iter
@@ -103,7 +100,8 @@
            (defmethod-form (method-name slot-names)
              `(defmethod ,method-name ((,instr ,instr))
                 ,@(unless slot-names `((declare (ignorable ,instr))))
-                (nconc ,@(mapcar (curry #'recurse-on-slot method-name) slot-names)))))
+                (delete-if (rcurry #'typep 'constant)
+                           (nconc ,@(mapcar (curry #'recurse-on-slot method-name) slot-names))))))
     `(progn
        ,(defmethod-form 'inputs inputs)
        ,(defmethod-form 'outputs outputs))))
@@ -116,8 +114,6 @@
   (:method ((vector vector)) (coerce vector 'list)))
 
 (def-inputs-outputs constant)
-(def-inputs-outputs read-global)
-(def-inputs-outputs set-global (src))
 (def-inputs-outputs read-closure-env (env) (dst))
 (def-inputs-outputs make-closure (elts) (dst))
 (def-inputs-outputs copy (src) (dst))

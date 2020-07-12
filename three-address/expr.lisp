@@ -6,8 +6,11 @@
    :cl)
   (:shadow :type)
   (:export
-   :register :name :type
-   :local :global
+   :register :type
+   :local :name
+   :constant :value
+   
+   :global :name :type
 
    :index
 
@@ -39,51 +42,46 @@
   (:shadow :throw :ignore))
 (cl:in-package :hindley-milner/three-address/expr)
 
-(define-enum register ((name symbol)
-                        (type type))
-  ((local ())
-   (global ())))
+(define-enum register ((type repr-type))
+  ((local ((name symbol)))
+   (constant ((value t)))))
+
+(define-class global ((name symbol)
+                      (type repr-type)))
 
 (deftype index ()
   '(and unsigned-byte fixnum))
 
 (define-enum instr ()
-  ((constant ((dst local)
-              (value t)))
-   (read-global ((dst local)
-                 (src global)))
-   (set-global ((dst global)
-                (src local)))
-   (read-closure-env ((dst local)
-                      (env local)
+  ((read-closure-env ((dst local)
+                      (env register)
                       (index index)))
    (make-closure ((dst local)
                   (func global)
-                  (elts (vector local))))
+                  (elts (vector register))))
    (copy ((dst local)
-          (src local)))
+          (src register)))
    (pointer-cast ((dst local)
-                  (src local)))
+                  (src register)))
    (primop ((op operator)
-            (dst local)
-            (args (vector local))))
-   (branch ((condition local)
+            (dst register)
+            (args (vector register))))
+   (branch ((condition register)
             (if-true symbol)
             (if-false symbol)))
    (call ((func local)
-          (args (vector local))))
+          (args (vector register))))
 
    ;; added in `liveness.lisp'
    (dead ((val local)))
 
    ;; added in `save-restore.lisp'
-   (save ((src local)
+   (save ((src register)
           ;; `dst' should have type pointer-to (type src)
           (dst local)))
    (restore ((dst local)
              ;; `src' should have type pointer-to (type dst)
-             (src local)))
-   ))
+             (src local)))))
 
 (define-class basic-block
     ((label (optional symbol))
@@ -95,12 +93,6 @@
      (closure-env closure-env)
      (body (vector basic-block))))
 
-(define-class global-def
-    ((name global)
-     (initform ; `nil' denotes 0-initialized and non-constant
-               (optional t))))
-
 (define-class program
     ((procs (vector procedure))
-     (globals (vector global))
      (entry procedure)))

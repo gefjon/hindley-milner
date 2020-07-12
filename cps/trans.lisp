@@ -62,10 +62,7 @@
 
 returns as a secondary value an (ASSOCIATION-LIST VARIABLE IR1:EXPR)
 of intermediate terms which must be constructed around the primary
-value.
-
-LEXENV should be an (ASSOCIATION-LIST SYMBOL VARIABLE) which is used
-to preserve EQ-ness of variables"))
+value."))
 
 ;;; transform-type methods
 
@@ -102,6 +99,13 @@ to preserve EQ-ness of variables"))
                  :func current-continuation
                  :args (specialized-vector variable
                                            (find-variable (ir1:name expr) lexenv))))
+
+(defmethod transform-to-expr ((expr ir1:quote)
+                              &key current-continuation
+                              &allow-other-keys)
+  (make-instance 'apply
+                 :func current-continuation
+                 :args (specialized-vector variable (transform-to-var expr))))
 
 (|:| #'funcall-vars-and-intermediate-terms
      (-> (ir1:funcall lexenv)
@@ -205,12 +209,10 @@ terms that must be computed prior to the call."
                                            (ir1:type
                                             (ir1:side-effect expr)))))
          (ignore-arglist (specialized-vector variable ignore-var))
-         (ignore-cont-defn (make-instance 'procedure
-                                          :name ignore-cont-name
-                                          :arglist ignore-arglist
-                                          :body ret-expr))
-         (ignore-cont (make-instance 'bind
-                                     :defn ignore-cont-defn
+         (ignore-cont (make-instance 'proc
+                                     :name ignore-cont-name
+                                     :arglist ignore-arglist
+                                     :body ret-expr
                                      :in side-effect-expr)))
     ignore-cont))
 
@@ -234,6 +236,12 @@ terms that must be computed prior to the call."
                                lexenv
                              &allow-other-keys)
   (find-variable (ir1:name expr) lexenv))
+
+(defmethod transform-to-var ((expr ir1:quote)
+                             &key &allow-other-keys)
+  (make-instance 'constant
+                 :type (transform-type (ir1:type expr))
+                 :value (ir1:it expr)))
 
 (defmethod transform-to-var ((expr ir1:expr)
                              &key
@@ -276,22 +284,11 @@ terms that must be computed prior to the call."
          (fenv (augment-lexenv-for-func lexenv arglist))
          (fbody (transform-to-expr (ir1:body initform)
                                    :current-continuation continuation-arg
-                                   :lexenv fenv))
-         (function (make-instance 'procedure
-                               :name var
-                               :arglist arglist
-                               :body fbody)))
-    (make-instance 'bind
-                   :defn function
-                   :in body)))
-
-(defmethod transform-binding ((initform ir1:quote) var body
-                              &key &allow-other-keys)
-  (let* ((constant (make-instance 'constant
-                                   :name var
-                                   :value (ir1:it initform))))
-    (make-instance 'bind
-                   :defn constant
+                                   :lexenv fenv)))
+    (make-instance 'proc
+                   :name var
+                   :arglist arglist
+                   :body fbody
                    :in body)))
 
 (defmethod transform-binding ((initform ir1:primop) var body
@@ -318,15 +315,14 @@ terms that must be computed prior to the call."
          (expr (transform-to-expr initform
                                   :lexenv lexenv
                                   :current-continuation cont-name))
-         (cont-defn (make-instance 'procedure
-                                   :name cont-name
-                                   :arglist arglist
-                                   :body body)))
-    (make-instance 'bind
-                   :defn cont-defn
+         )
+    (make-instance 'proc
+                   :name cont-name
+                   :arglist arglist
+                   :body body
                    :in expr)))
 
-(defvar *exit-continuation* (make-instance 'global
+(defvar *exit-continuation* (make-instance 'local
                                            :name 'exit
                                            :type (make-instance 'function
                                                                 :inputs #()))
@@ -334,14 +330,15 @@ terms that must be computed prior to the call."
 
 (defun cps-transform (typed-ir1-program)
   (iter
+    (if-first-time (collect *exit-continuation* into lexenv at beginning))
     (for def in-vector (ir1:definitions typed-ir1-program))
-    (for global = (make-instance 'global
+    (for local = (make-instance 'local
                                  :name (ir1:name def)
                                  :type (transform-type (ir1:type def))))
-    (collect (cons global (ir1:initform def))
+    (collect (cons local (ir1:initform def))
       into intermediate-terms
       at beginning)
-    (collect global into lexenv at beginning)
+    (collect local into lexenv at beginning)
     (finally
      (return
        (compute-intermediate-terms intermediate-terms
