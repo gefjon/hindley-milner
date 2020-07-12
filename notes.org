@@ -24,6 +24,7 @@
    CLOSED: [2020-07-10 Fri 21:34]
 ** DONE remove ~global~ crap from cps and 3adr
    CLOSED: [2020-07-12 Sun 15:15]
+** TODO rename saved and restored vars in liveness; rauw copy vars
 * musings of mine
   i don't claim that any of these ideas are original, but typing them out helps
   me to understand them.
