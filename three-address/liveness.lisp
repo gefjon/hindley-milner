@@ -4,6 +4,8 @@
    :hindley-milner/three-address/expr
    :iterate
    :cl)
+  (:import-from :alexandria
+   :curry)
   (:export :liveness-annotate))
 (in-package :hindley-milner/three-address/liveness)
 
@@ -25,11 +27,11 @@
     (vector-push-extend el dst)))
 
 (define-special *labels-to-live-set-map*
-    (hash-map-of symbol (adjustable-vector local)))
+    (hash-map-of symbol (hash-set local)))
 
 (defun live-set-for-label (label)
   (ensure-get label *labels-to-live-set-map*
-              (adjustable-vector local)))
+              (make-hash-set :test #'eq)))
 
 (defmethod liveness-annotate
     ((procedure procedure)
@@ -41,6 +43,13 @@
 (define-special *live-set* (adjustable-vector instr))
 (define-special *current-bb-body* list)
 
+(defun make-live (local)
+  (hash-set-insert local *live-set*))
+
+(defgeneric add-instr (instr)
+  (:method ((instr instr))
+    (push instr *current-bb-body*)))
+
 (defmethod liveness-annotate
     ((bb basic-block)
      &aux (*live-set* (live-set-for-label (label bb)))
@@ -50,41 +59,62 @@
                  :label (label bb)
                  :body (coerce *current-bb-body* '(vector instr))))
 
-(defun add-all-to-live-set (vec)
-  (push-onto-vector vec *live-set*))
+(|:| #'merge-into-live-set (-> ((hash-set local)) void))
+(defun merge-into-live-set (other-set)
+  (hash-set-map #'make-live other-set)
+  (values))
 
-(defmethod liveness-annotate :around ((branch branch))
-  (add-all-to-live-set (live-set-for-label (if-true branch)))
-  (add-all-to-live-set (live-set-for-label (if-false branch))))
+(defmethod liveness-annotate :before ((branch branch))
+  (merge-into-live-set (live-set-for-label (if-true branch)))
+  (merge-into-live-set (live-set-for-label (if-false branch))))
 
-(defmacro def-inputs (instr &rest slot-names)
-  (flet ((recurse-on-slot (slot-name)
-           `(inputs (slot-value ,instr ',slot-name))))
-    `(defmethod inputs ((,instr ,instr))
-       ,@(unless slot-names `((declare (ignorable ,instr))))
-       (nconc ,@(mapcar #'recurse-on-slot slot-names)))))
+(defmacro def-inputs-outputs (instr &optional inputs outputs)
+  (labels ((recurse-on-slot (func slot-name)
+             `(,func (slot-value ,instr ',slot-name)))
+           (defmethod-form (method-name slot-names)
+             `(defmethod ,method-name ((,instr ,instr))
+                ,@(unless slot-names `((declare (ignorable ,instr))))
+                (nconc ,@(mapcar (curry #'recurse-on-slot method-name) slot-names)))))
+    `(progn
+       ,(defmethod-form 'inputs inputs)
+       ,(defmethod-form 'outputs outputs))))
 
 (defgeneric inputs (instr)
   (:method ((local local)) (list local))
   (:method ((vector vector)) (coerce vector 'list)))
-(def-inputs constant)
-(def-inputs read-global)
-(def-inputs set-global src)
-(def-inputs read-closure-env env)
-(def-inputs make-closure elts)
-(def-inputs copy src)
-(def-inputs pointer-cast src)
-(def-inputs primop args)
-(def-inputs branch condition)
-(def-inputs call args)
+(defgeneric outputs (instr)
+  (:method ((local local)) (list local))
+  (:method ((vector vector)) (coerce vector 'list)))
+
+(def-inputs-outputs constant)
+(def-inputs-outputs read-global)
+(def-inputs-outputs set-global (src))
+(def-inputs-outputs read-closure-env (env) (dst))
+(def-inputs-outputs make-closure (elts) (dst))
+(def-inputs-outputs copy (src) (dst))
+(def-inputs-outputs pointer-cast (src) (dst))
+(def-inputs-outputs primop (args) (dst))
+(def-inputs-outputs branch (condition))
+(def-inputs-outputs call (args))
 
 (defun live-p (local)
-  (find local *live-set* :test #'eq))
+  (multiple-value-bind (_ res)
+      (hash-set-contains-p local *live-set*)
+    (declare (ignore _))
+    res))
+
+(defun make-unborn (local)
+  (hash-set-remove local *live-set*)
+  (values))
+
+(defun use (local)
+  (unless (live-p local)
+    (push (make-instance 'dead :val local) *current-bb-body*))
+  (make-live local)
+  (values))
 
 (defmethod liveness-annotate ((instr instr))
-  (iter (for input in (inputs instr))
-    (unless (live-p input)
-      (push (make-instance 'dead :val input) *current-bb-body*))
-    (vector-push-extend input *live-set*))
-  (push instr *current-bb-body*)
+  (mapc #'use (inputs instr))
+  (add-instr instr)
+  (mapc #'make-unborn (outputs instr))
   (values))

@@ -24,6 +24,12 @@
    :ensure-find
    :format-gensym
    :with-slot-accessors
+   :hash-set
+   :make-hash-set
+   :hash-set-contains-p
+   :hash-set-insert
+   :hash-set-remove
+   :hash-set-map
 
    ;; reexports from gefjon-utils
    :define-class
@@ -107,3 +113,42 @@ for example: (define-special *foo* fixnum)"
              ((cons symbol (cons symbol null)) accessor)
              (symbol `(,accessor ,accessor)))))
     `(with-accessors ,(mapcar #'canonicalize accessors) ,instance ,@body)))
+
+(deftype hash-set (&optional eltype)
+  `(hash-map-of ,eltype ,eltype))
+
+(defun make-hash-set (&key (test #'eq))
+  (make-hash-table :test test))
+
+(|:| #'hash-set-contains-p (-> (t hash-set) (values t boolean)))
+(defun hash-set-contains-p (elt set)
+  "Test is SET contains ELT.
+
+If present, return the version in the set as a primary value and `t' as a secondary value.
+If not present, return `nil' as both primary and secondary values."
+  (multiple-value-bind (entry foundp) (gethash elt set)
+    (values
+     (when foundp
+       (assert (funcall (hash-table-test set) elt entry))
+       entry)
+     foundp)))
+
+(|:| #'hash-set-insert (-> (t hash-set) void))
+(defun hash-set-insert (elt set)
+  "Insert ELT into SET.
+
+Does no checking to see if SET already contains ELT."
+  (setf (gethash elt set) elt))
+
+(|:| #'hash-set-remove (-> (t hash-set) boolean))
+(defun hash-set-remove (elt set)
+  "Remove ELT from SET, returning `t' if it was present or `nil' if it was not."
+  (remhash elt set))
+
+(|:| #'hash-set-map (-> ((-> (t) void) hash-set) void))
+(defun hash-set-map (func set)
+  (flet ((maphash-func (key val)
+           (assert (funcall (hash-table-test set) key val))
+           (funcall func key)))
+    (maphash #'maphash-func set))
+  (values))
