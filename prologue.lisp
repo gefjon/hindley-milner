@@ -23,6 +23,7 @@
    :define-special
    :ensure-find
    :format-gensym
+   :with-slot-accessors
 
    ;; reexports from gefjon-utils
    :define-class
@@ -98,3 +99,11 @@ for example: (define-special *foo* fixnum)"
 (|:| #'format-gensym (-> (string &rest t) symbol))
 (defun format-gensym (fmt &rest args)
   (gensym (apply #'format nil fmt args)))
+
+(defmacro with-slot-accessors (accessors instance &body body)
+  "Like `with-accessors', but allows the shorthand from `with-slots' which binds the name of the accessor as the local."
+  (flet ((canonicalize (accessor)
+           (etypecase accessor
+             ((cons symbol (cons symbol null)) accessor)
+             (symbol `(,accessor ,accessor)))))
+    `(with-accessors ,(mapcar #'canonicalize accessors) ,instance ,@body)))
