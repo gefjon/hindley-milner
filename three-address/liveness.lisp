@@ -1,5 +1,6 @@
 (uiop:define-package :hindley-milner/three-address/liveness
   (:mix
+   :hindley-milner/repr-type
    :hindley-milner/prologue
    :hindley-milner/three-address/expr
    :iterate
@@ -48,7 +49,35 @@
 
 (defgeneric add-instr (instr)
   (:method ((instr instr))
-    (push instr *current-bb-body*)))
+    (push instr *current-bb-body*)
+    (values)))
+
+(defmethod add-instr :around
+    ((instr make-closure)
+     &aux (tmps (adjustable-vector (cons local local))))
+  (labels ((stack-slot-for (local)
+             (make-instance 'local
+                            :name (format-gensym "~a-stack-slot" (name local))
+                            :type (make-instance 'pointer
+                                                 :pointee (type local))))
+           (make-tmp-for-local (local)
+             (vector-push-extend (cons local (stack-slot-for local))
+                                 tmps))
+           (save (tmp)
+             (destructuring-bind (to-save . stack-slot) tmp
+               (add-instr (make-instance 'save
+                                         :dst stack-slot
+                                         :src to-save))))
+           (restore (tmp)
+             (destructuring-bind (to-rest . stack-slot) tmp
+               (add-instr (make-instance 'restore
+                                         :dst to-rest
+                                         :src stack-slot)))))
+    (hash-set-map #'make-tmp-for-local *live-set*)
+    (map nil #'restore tmps)
+    (call-next-method)
+    (map nil #'save tmps)
+    (values)))
 
 (defmethod liveness-annotate
     ((bb basic-block)

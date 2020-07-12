@@ -30,6 +30,7 @@
    :hash-set-insert
    :hash-set-remove
    :hash-set-map
+   :hash-set-count
 
    ;; reexports from gefjon-utils
    :define-class
@@ -152,3 +153,7 @@ Does no checking to see if SET already contains ELT."
            (funcall func key)))
     (maphash #'maphash-func set))
   (values))
+
+(|:| #'hash-set-count (-> (hash-set) unsigned-byte))
+(defun hash-set-count (set)
+  (hash-table-count set))
