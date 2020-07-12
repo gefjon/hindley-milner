@@ -22,6 +22,9 @@
    :pointer-cast :dst :src
    :branch :condition :if-true :if-false
    :call :func :args
+   :dead :val
+   :save :src :dst
+   :restore :dst :src
 
    :basic-block :label :body
    
@@ -70,17 +73,27 @@
    (call ((func local)
           (args (vector local))))
 
+   ;; added in `liveness.lisp'
+   (dead ((val local)))
+
+   ;; added in `save-restore.lisp'
+   (save ((src local)
+          ;; `dst' should have type pointer-to (type src)
+          (dst local)))
+   (restore ((dst local)
+             ;; `src' should have type pointer-to (type dst)
+             (src local)))
    ))
 
 (define-class basic-block
-    ((label symbol)
-     (body (adjustable-vector instr))))
+    ((label (optional symbol))
+     (body (vector instr))))
 
 (define-class procedure
     ((name global)
      (args (vector local))
      (closure-env closure-env)
-     (body (adjustable-vector basic-block))))
+     (body (vector basic-block))))
 
 (define-class global-def
     ((name global)
@@ -88,6 +101,6 @@
                (optional t))))
 
 (define-class program
-    ((procs (adjustable-vector procedure))
-     (globals (adjustable-vector global))
+    ((procs (vector procedure))
+     (globals (vector global))
      (entry procedure)))

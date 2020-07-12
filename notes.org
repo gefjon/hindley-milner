@@ -18,6 +18,11 @@
 ** DONE make closure var accesses local to their usage
    CLOSED: [2020-04-11 Sat 16:57]
    instead of having every closure begin by accessing every var it closes over
+** DONE make three-address function types include their opaque-ptr closure args
+   CLOSED: [2020-07-10 Fri 16:12]
+** DONE make three-address function types include their continuation args
+   CLOSED: [2020-07-10 Fri 21:34]
+** TODO remove ~global~ crap from cps and 3adr
 * musings of mine
   i don't claim that any of these ideas are original, but typing them out helps
   me to understand them.
