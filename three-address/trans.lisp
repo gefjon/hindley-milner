@@ -12,6 +12,25 @@
    :three-address-transform-program))
 (cl:in-package :hindley-milner/three-address/trans)
 
+(defgeneric extend-type (type)
+  (:method ((type primitive))
+    "Base case: leave `primitive' types untouched."
+    type)
+  (:method ((type function))
+    "Interesting case: add an `*opaque-ptr*' closure-env arg to `function's."
+    (make-instance 'function
+                   :inputs (concatenate '(vector repr-type)
+                                        (list *opaque-ptr*)
+                                        (map '(vector repr-type) #'extend-type
+                                             (inputs type)))))
+  (:method ((type repr-type))
+    "Recursive case: recurse on all other types."
+    (map-slots #'extend-type type)))
+
+(defun pointer (pointee)
+  (make-instance 'pointer
+                 :pointee pointee))
+
 (define-special *current-procedure* procedure)
 (define-special *program* program)
 (define-special *closure-idxes* (hash-map-of cps:closure index))
@@ -45,14 +64,14 @@
                 ((or cps:local cps:closure)
                  (make-instance 'local
                                 :name (cps:name var)
-                                :type (cps:type var))))))
+                                :type (extend-type (cps:type var)))))))
 
 (|:| #'global-for-var (-> (cps:global) global))
 (defun global-for-var (var)
   (ensure-get var *var-globals*
               (make-instance 'global
                              :name (cps:name var)
-                             :type (cps:type var))))
+                             :type (extend-type (cps:type var)))))
 
 (|:| #'local-for-global (-> (global) local))
 (defun local-for-global (global)
@@ -129,8 +148,15 @@
 
 (defun make-closure-arg (fname &optional (type *opaque-ptr*))
   (make-instance 'local
-                 :name (format-gensym "~a-closure-arg" fname)
+                 :name (format-gensym "~a-closure-arg" (name fname))
                  :type type))
+
+(defun proc-arg (var)
+  (if (typep var 'cps:global)
+      (make-instance 'local
+                     :name (make-gensym (cps:name var))
+                     :type (extend-type (cps:type var)))
+      (corresponding-local var)))
 
 (|:| #'make-procedure
      (-> (symbol (optional (vector register)) &optional (optional cps:closure-env-map))
@@ -141,14 +167,16 @@
                                      :elts (map '(vector type) (compose #'cps:type #'car)
                                                 closure-env)))
          (*current-bb* (make-instance 'basic-block
-                                     :label (format-gensym "~a-entry" name)
-                                     :body (adjustable-vector instr)))
+                                      :label nil
+                                      :body (adjustable-vector instr)))
          (opaque-closure-arg (make-closure-arg name))
          (args (coerce (cons opaque-closure-arg
-                              (map 'list #'corresponding-local
+                              (map 'list #'proc-arg
                                    arglist))
                        '(vector register)))
-         (typed-closure-reg (make-closure-arg name closure-env)))
+         (typed-closure-reg (make-closure-arg name
+                                              (make-instance 'pointer
+                                                             :pointee closure-env))))
     (insn 'pointer-cast
           :dst typed-closure-reg
           :src opaque-closure-arg)
@@ -216,14 +244,6 @@
                      :dst (local-for-var name)
                      :value (cps:value defn)))))
 
-(defgeneric arglist (proc)
-  (:method ((proc cps:func))
-    (cons (cps:continuation-arg proc)
-          (coerce (cps:arglist proc) 'list)))
-  (:method ((proc cps:continuation))
-    (specialized-vector cps:variable
-                        (cps:arg proc))))
-
 ;; The CPS representation represents non-constant global variables as
 ;; `cps:global' arguments to `cps:continuation's. The following
 ;; handful of functions (`handle-computed-global',
@@ -231,16 +251,27 @@
 ;; transforming such continuations into procedures of normal arguments
 ;; which store into corresponding global variables.
 
+(|:| #'global-arg (-> (cps:procedure) (optional cps:variable)))
+(defun global-arg (cps-proc)
+  (with-slot-accessors (cps:arglist) cps-proc
+    (and (= (length cps:arglist) 1)
+         (aref cps:arglist 0))))
+
+(|:| #'transformed-proc-global-arg (-> (procedure) local))
+(defun transformed-proc-global-arg (3adr-proc)
+  (with-slot-accessors (args) 3adr-proc
+    (assert (= (length args) 2))
+    (aref args 1)))
+
 (|:| #'computed-global-p (-> (cps:procedure) boolean))
 (defun computed-global-p (defn)
-  (and (typep defn 'cps:continuation)
-       (typep (cps:arg defn) 'cps:global)))
+  (when-let ((arg (global-arg defn)))
+    (typep arg 'cps:global)))
 
-(|:| #'store-computed-global (-> (cps:continuation) void))
+(|:| #'store-computed-global (-> (cps:procedure) void))
 (defun store-computed-global (defn
-                              &aux (global (global-for-var (cps:arg defn)))
-                                (local (corresponding-local global)))
-  (assert (eq local (aref (args *current-procedure*) 1)))
+                              &aux (global (global-for-var (global-arg defn)))
+                                (local (transformed-proc-global-arg *current-procedure*)))
   (maybe-add-global global)
   (store-into local global))
 
@@ -251,9 +282,11 @@
 
 (defmethod add-definition ((defn cps:procedure))
   (let* ((reg (corresponding-local (cps:name defn)))
-         (fname (name reg)))
+         (fname (make-instance 'global
+                               :name (name reg)
+                               :type (type reg))))
     (with-procedure
-        (fname (arglist defn) (cps:closes-over defn))
+        (fname (cps:arglist defn) (cps:closes-over defn))
       (handle-computed-global defn)
       (transform-expr (cps:body defn)))
     (insn 'make-closure
@@ -290,31 +323,21 @@
                  (transform-expr (cps:else-clause expr)))))
     (insn 'branch
           :condition pred
-          :label then)
-    (insn 'branch
-          :condition t
-          :label else)))
-
-(defgeneric funcall-func (funcall)
-  (:method ((apply cps:apply))
-    (cps:func apply))
-  (:method ((throw cps:throw))
-    (cps:cont throw)))
+          :if-true then
+          :if-false else)))
 
 (defmethod transform-expr ((expr cps:apply))
   (insn 'call
-        :condition t
         :func (read-from (cps:func expr))
         :args (read-from (cps:args expr))))
 
-(defmethod transform-expr ((expr cps:throw))
-  (insn 'call
-        :condition t
-        :func (read-from (cps:cont expr))
-        :args (specialized-vector register (read-from (cps:arg expr)))))
+(defvar *main* (make-instance 'global
+                              :name 'main
+                              :type (make-instance 'function
+                                                   :inputs #())))
 
 (defmacro with-program (&body body)
-  `(with-procedure ('main () () :add nil)
+  `(with-procedure (*main* () () :add nil)
      (let* ((*var-locals* (make-hash-table :test #'eq))
             (*var-globals* (make-hash-table :test #'eq))
             (*global-locals* (make-hash-table :test #'eq))

@@ -15,13 +15,13 @@
    :constant :dst :value
    :read-global :dst :src
    :set-global :dst :src
-   :read-closure-env :dst :index
+   :read-closure-env :dst :env :index
    :make-closure :dst :func :elts
    :copy :dst :src
    :primop :op :dst :args
    :pointer-cast :dst :src
-   :branch :condition :label
-   :call :condition :func :args
+   :branch :condition :if-true :if-false
+   :call :func :args
 
    :basic-block :label :body
    
@@ -55,7 +55,7 @@
                       (env local)
                       (index index)))
    (make-closure ((dst local)
-                  (func symbol)
+                  (func global)
                   (elts (vector local))))
    (copy ((dst local)
           (src local)))
@@ -64,20 +64,20 @@
    (primop ((op operator)
             (dst local)
             (args (vector local))))
-   (branch ((condition ; `t' denotes always taken
-                       (or local (eql t)))
-            (label symbol)))
-   (call ((condition ; `t' denotes always taken
-                     (or local (eql t)))
-          (func local)
-          (args (vector local))))))
+   (branch ((condition local)
+            (if-true symbol)
+            (if-false symbol)))
+   (call ((func local)
+          (args (vector local))))
+
+   ))
 
 (define-class basic-block
     ((label symbol)
      (body (adjustable-vector instr))))
 
 (define-class procedure
-    ((name symbol)
+    ((name global)
      (args (vector local))
      (closure-env closure-env)
      (body (adjustable-vector basic-block))))
