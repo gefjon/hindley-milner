@@ -74,10 +74,23 @@ to preserve EQ-ness of variables"))
                  :primitive (ir1:name type)))
 
 (defmethod transform-type ((type ir1:arrow))
-  (make-instance 'function
-                 :inputs (map '(vector repr-type) #'transform-type
-                              (ir1:inputs type))))
-
+  (with-slot-accessors (ir1:inputs ir1:output) type
+    (let* ((cont-arg (transform-type ir1:output))
+           (cont-fn (make-instance 'function
+                                   :inputs (specialized-vector repr-type cont-arg)))
+           (cont-closure (make-instance 'closure-func
+                                        :fptr (make-instance 'pointer
+                                                             :pointee cont-fn)))
+           (normal-args (map '(vector repr-type) #'transform-type
+                             (ir1:inputs type)))
+           (args (concatenate '(vector repr-type)
+                              (list cont-closure)
+                              normal-args))
+           (func (make-instance 'function
+                                :inputs args)))
+      (make-instance 'closure-func
+                     :fptr (make-instance 'pointer
+                                          :pointee func)))))
 ;;; transform-to-expr methods
 
 (defmethod transform-to-expr ((expr ir1:variable)
@@ -85,9 +98,10 @@ to preserve EQ-ness of variables"))
                                 current-continuation
                                 lexenv
                               &allow-other-keys)
-  (make-instance 'throw
-                 :cont current-continuation
-                 :arg (find-variable (ir1:name expr) lexenv)))
+  (make-instance 'apply
+                 :func current-continuation
+                 :args (specialized-vector variable
+                                           (find-variable (ir1:name expr) lexenv))))
 
 (|:| #'funcall-vars-and-intermediate-terms
      (-> (ir1:funcall lexenv)
@@ -114,10 +128,12 @@ terms that must be computed prior to the call."
       (arg-vec-vars-and-terms (ir1:args expr) lexenv)
     (multiple-value-bind (func-var func-terms)
         (transform-to-var (ir1:func expr) :lexenv lexenv)
-      (let* ((apply-expr (make-instance 'apply
+      (let* ((full-arglist (concatenate '(vector variable)
+                                        (list current-continuation)
+                                        arg-vars))
+             (apply-expr (make-instance 'apply
                                         :func func-var
-                                        :args arg-vars
-                                        :continuation current-continuation))
+                                        :args full-arglist))
              (compute-args (compute-intermediate-terms arg-terms
                                                        apply-expr
                                                        lexenv))
@@ -188,9 +204,10 @@ terms that must be computed prior to the call."
                                     :type (transform-type
                                            (ir1:type
                                             (ir1:side-effect expr)))))
-         (ignore-cont-defn (make-instance 'continuation
+         (ignore-arglist (specialized-vector variable ignore-var))
+         (ignore-cont-defn (make-instance 'procedure
                                           :name ignore-cont-name
-                                          :arg ignore-var
+                                          :arglist ignore-arglist
                                           :body ret-expr))
          (ignore-cont (make-instance 'bind
                                      :defn ignore-cont-defn
@@ -205,9 +222,9 @@ terms that must be computed prior to the call."
   (let* ((var (make-instance 'local
                              :name (make-gensym 'tmp)
                              :type (transform-type (ir1:type expr))))
-         (body (make-instance 'throw
-                              :arg var
-                              :cont current-continuation)))
+         (body (make-instance 'apply
+                              :args (specialized-vector variable var)
+                              :func current-continuation)))
     (transform-binding expr var body :lexenv lexenv)))
 
 ;;; transform-to-var methods
@@ -252,15 +269,17 @@ terms that must be computed prior to the call."
                               &allow-other-keys)
   (let* ((continuation-arg (make-continuation-arg 'return
                                                   (transform-type (ir1:output (ir1:type initform)))))
-         (args (lambda-arg-vars initform))
-         (fenv (augment-lexenv-for-func lexenv args))
+         (normal-args (lambda-arg-vars initform))
+         (arglist (concatenate '(vector variable)
+                               (list continuation-arg)
+                               normal-args))
+         (fenv (augment-lexenv-for-func lexenv arglist))
          (fbody (transform-to-expr (ir1:body initform)
                                    :current-continuation continuation-arg
                                    :lexenv fenv))
-         (function (make-instance 'func
+         (function (make-instance 'procedure
                                :name var
-                               :arglist args
-                               :continuation-arg continuation-arg
+                               :arglist arglist
                                :body fbody)))
     (make-instance 'bind
                    :defn function
@@ -294,12 +313,14 @@ terms that must be computed prior to the call."
                               &allow-other-keys)
   (let* ((cont-name (make-continuation-arg 'cont
                                            (transform-type (ir1:type initform))))
+         (arglist (specialized-vector variable var))
+         (lexenv (augment-lexenv-for-func lexenv arglist))
          (expr (transform-to-expr initform
                                   :lexenv lexenv
                                   :current-continuation cont-name))
-         (cont-defn (make-instance 'continuation
+         (cont-defn (make-instance 'procedure
                                    :name cont-name
-                                   :arg var
+                                   :arglist arglist
                                    :body body)))
     (make-instance 'bind
                    :defn cont-defn

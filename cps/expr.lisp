@@ -8,7 +8,7 @@
   (:import-from :alexandria
    :symbolicate)
   (:shadow
-   :func :variable :let :if :apply :throw :prog2)
+   :func :variable :let :if :apply :prog2)
   (:export
    :variable :name :type
    :global :local :closure
@@ -16,9 +16,7 @@
    :closure-env-map
 
    :definition :name
-   :procedure :body :closes-over
-   :func :arglist :continuation-arg
-   :continuation :arg
+   :procedure :body :closes-over :arglist
    :constant :value
 
    :expr
@@ -35,30 +33,15 @@
    (local ())
    (closure ())))
 
-(define-class definition
-    ((name variable)))
-
 (deftype closure-env-map ()
   "A vector of conses which map variables from the enclosing scope to closure vars."
   '(adjustable-vector (cons variable closure)))
 
-(define-class procedure
-    ((body expr)
-     (closes-over closure-env-map :may-init-unbound t))
-  :superclasses (definition))
-
-(define-class func
-    ((arglist (vector variable))
-     (continuation-arg variable))
-  :superclasses (procedure))
-
-(define-class continuation
-    ((arg variable))
-  :superclasses (procedure))
-
-(define-class constant
-    ((value t))
-  :superclasses (definition))
+(define-enum definition ((name variable))
+  ((procedure ((body expr)
+               (closes-over closure-env-map :may-init-unbound t) ;; added in `closure.lisp'
+               (arglist (vector variable))))
+   (constant ((value t)))))
 
 (define-enum expr ()
   ((let ((var variable)
@@ -71,7 +54,4 @@
         (then-clause expr)
         (else-clause expr)))
    (apply ((func variable)
-           (args (vector variable))
-           (continuation variable)))
-   (throw ((cont variable)
-           (arg variable)))))
+           (args (vector variable))))))
