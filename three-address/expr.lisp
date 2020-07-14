@@ -15,12 +15,10 @@
    :index
 
    :instr
-   :constant :dst :value
    :read-global :dst :src
    :set-global :dst :src
    :read-closure-env :dst :env :index
    :make-closure :dst :func :elts
-   :copy :dst :src
    :primop :op :dst :args
    :pointer-cast :dst :src
    :branch :condition :if-true :if-false
@@ -59,8 +57,6 @@
    (make-closure ((dst local)
                   (func global)
                   (elts (vector register))))
-   (copy ((dst local)
-          (src register)))
    (pointer-cast ((dst local)
                   (src register)))
    (primop ((op operator)

@@ -150,7 +150,6 @@
 (def-inputs-outputs constant)
 (def-inputs-outputs read-closure-env (env) (dst))
 (def-inputs-outputs make-closure (elts) (dst))
-(def-inputs-outputs copy (src) (dst))
 (def-inputs-outputs pointer-cast (src) (dst))
 (def-inputs-outputs primop (args) (dst))
 (def-inputs-outputs branch (condition))

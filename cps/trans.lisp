@@ -304,6 +304,12 @@ terms that must be computed prior to the call."
                                   let-expr
                                   lexenv))))
 
+(defmethod transform-binding ((initform ir1:quote) var body &key &allow-other-keys)
+  (subst (transform-to-var initform) var body))
+
+(defmethod transform-binding ((initform ir1:variable) var body &key &allow-other-keys)
+  (subst (transform-to-var initform) var body))
+
 (defmethod transform-binding ((initform ir1:expr) var body
                               &key
                                 lexenv
@@ -314,8 +320,7 @@ terms that must be computed prior to the call."
          (lexenv (augment-lexenv-for-func lexenv arglist))
          (expr (transform-to-expr initform
                                   :lexenv lexenv
-                                  :current-continuation cont-name))
-         )
+                                  :current-continuation cont-name)))
     (make-instance 'proc
                    :name cont-name
                    :arglist arglist

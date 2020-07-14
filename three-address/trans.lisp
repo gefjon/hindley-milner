@@ -86,28 +86,6 @@
   (:method ((list list))
     (mapcar #'read-from list)))
 
-(defgeneric store-into (src dst)
-  (:documentation "store the value currently contained in SRC into DST.")
-  (:method ((src local) (var cps:local))
-    (store-into src (local-for-var var)))
-  (:method ((src local) (var cps:closure))
-    (error "cannot store into a closure!"))
-  (:method ((src local) (dst local))
-    (unless (eq src dst)
-      (insn 'copy
-            :dst dst
-            :src src)))
-  (:method ((src cps:variable) dst)
-    (store-into (read-from src) dst)))
-
-(defmacro with-dst ((reg var) &body body)
-  (check-type reg symbol)
-  (with-gensyms (vari)
-    `(let* ((,vari ,var)
-            (,reg (corresponding-local ,vari)))
-       ,@body
-       (store-into ,reg ,vari))))
-
 (defun make-closure-arg (fname &optional (type *opaque-ptr*))
   (make-instance 'local
                  :name (format-gensym "~a-closure-arg" (name fname))
@@ -170,11 +148,10 @@
 (defgeneric transform-expr (cps-expr))
 
 (defmethod transform-expr ((expr cps:let))
-  (with-dst (dst (cps:var expr))
-    (insn 'primop
-        :dst dst
+  (insn 'primop
+        :dst (cps:var expr)
         :op (cps:prim-op expr)
-        :args (read-from (cps:args expr)))))
+        :args (read-from (cps:args expr))))
 
 (|:| #'add-proc (-> (cps:proc) void))
 (defun add-proc (defn)
