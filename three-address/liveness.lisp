@@ -94,6 +94,7 @@
              (with-slot-accessors ((to-restore saved-tmp-info-orig)
                                    (stack-slot saved-tmp-info-stack-slot))
                  tmp
+               (add-instr (make-instance 'dead :val stack-slot))
                (add-instr (make-instance 'restore
                                          :dst to-restore
                                          :src stack-slot))))
