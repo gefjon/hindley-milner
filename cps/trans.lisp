@@ -17,8 +17,9 @@
 (defun make-continuation-arg (name arg-type)
   (make-instance 'local
                  :name (make-gensym name)
-                 :type (make-instance 'function
-                                      :inputs (specialized-vector repr-type arg-type))))
+                 :type (make-instance 'closure-func
+                                      :fptr (make-instance 'function-ptr
+                                                           :inputs (specialized-vector repr-type arg-type)))))
 
 (deftype intermediate-terms ()
   '(association-list variable ir1:expr))
@@ -73,21 +74,18 @@ value."))
 (defmethod transform-type ((type ir1:arrow))
   (with-slot-accessors (ir1:inputs ir1:output) type
     (let* ((cont-arg (transform-type ir1:output))
-           (cont-fn (make-instance 'function
+           (cont-fn (make-instance 'function-ptr
                                    :inputs (specialized-vector repr-type cont-arg)))
            (cont-closure (make-instance 'closure-func
-                                        :fptr (make-instance 'pointer
-                                                             :pointee cont-fn)))
+                                        :fptr cont-fn))
            (normal-args (map '(vector repr-type) #'transform-type
                              (ir1:inputs type)))
            (args (concatenate '(vector repr-type)
                               (list cont-closure)
-                              normal-args))
-           (func (make-instance 'function
-                                :inputs args)))
+                              normal-args)))
       (make-instance 'closure-func
-                     :fptr (make-instance 'pointer
-                                          :pointee func)))))
+                     :fptr (make-instance 'function-ptr
+                                          :inputs args)))))
 ;;; transform-to-expr methods
 
 (defmethod transform-to-expr ((expr ir1:variable)
@@ -329,7 +327,7 @@ terms that must be computed prior to the call."
 
 (defvar *exit-continuation* (make-instance 'local
                                            :name 'exit
-                                           :type (make-instance 'function
+                                           :type (make-instance 'function-ptr
                                                                 :inputs #()))
   "the continuation to exit the program")
 

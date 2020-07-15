@@ -70,13 +70,13 @@
   (labels ((stack-slot-for (local)
              (make-instance 'local
                             :name (format-gensym "~a-stack-slot" (name local))
-                            :type (make-instance 'pointer
+                            :type (make-instance 'stack-ptr
                                                  :pointee (type local))))
            (substitution-for (local)
              (shallow-copy local
                            :name (format-gensym "~a-copy" (name local))))
-           (make-tmp-for-local (local except-for)
-             (unless (eq local except-for)
+           (make-tmp-for-local (local)
+             (when (contains-gc-ptr-p (type local))
                (vector-push-extend (make-saved-tmp-info
                                     :orig local
                                     :stack-slot (stack-slot-for local)
@@ -101,7 +101,7 @@
            (add-substitution (tmp)
              (sub (saved-tmp-info-orig tmp)
                   (saved-tmp-info-new tmp))))
-    (hash-set-map (rcurry #'make-tmp-for-local (dst instr)) *live-set*)
+    (hash-set-map #'make-tmp-for-local *live-set*)
     (map nil #'add-substitution tmps)
     (let* ((new-instr (shallow-copy instr
                                     :elts (apply-substitutions (elts instr)))))
@@ -181,8 +181,8 @@
     ((orig instr)
      &aux (instr (apply-substitutions orig))
        (inputs (inputs instr)))
+  (mapc #'make-unborn (outputs instr))
   (mapc #'die-if-not-live inputs)
   (add-instr instr)
   (mapc #'make-live inputs)
-  (mapc #'make-unborn (outputs instr))
   (values))

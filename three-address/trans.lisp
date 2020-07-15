@@ -16,9 +16,9 @@
   (:method ((type primitive))
     "Base case: leave `primitive' types untouched."
     type)
-  (:method ((type function))
+  (:method ((type function-ptr))
     "Interesting case: add an `*opaque-ptr*' closure-env arg to `function's."
-    (make-instance 'function
+    (make-instance 'function-ptr
                    :inputs (concatenate '(vector repr-type)
                                         (list *opaque-ptr*)
                                         (map '(vector repr-type) #'extend-type
@@ -26,10 +26,6 @@
   (:method ((type repr-type))
     "Recursive case: recurse on all other types."
     (map-slots #'extend-type type)))
-
-(defun pointer (pointee)
-  (make-instance 'pointer
-                 :pointee pointee))
 
 (define-special *current-procedure* procedure)
 (define-special *program* program)
@@ -108,7 +104,7 @@
                                    arglist))
                        '(vector register)))
          (typed-closure-reg (make-closure-arg name
-                                              (make-instance 'pointer
+                                              (make-instance 'gc-ptr
                                                              :pointee closure-env))))
     (insn 'pointer-cast
           :dst typed-closure-reg
@@ -206,11 +202,11 @@
 
 (defvar *main* (make-instance 'global
                               :name 'main
-                              :type (make-instance 'function :inputs #(*opaque-ptr*))))
+                              :type (make-instance 'function-ptr :inputs #(*opaque-ptr*))))
 (defvar *main-closure* (make-instance 'local
                                       :name 'main
                                       :type (make-instance 'closure-func
-                                                           :fptr (pointer (make-instance 'function :inputs #(*opaque-ptr*))))))
+                                                           :fptr (type *main*))))
 
 (defmacro with-program (&body body)
   `(with-procedure (*main* () () :add nil)
