@@ -12,7 +12,7 @@
   (:import-from :genhash
    :hashref)
   (:import-from :alexandria
-   :remove-from-plist)
+   :remove-from-plist :rcurry)
   (:import-from :trivial-types
    :tuple)
   (:export
@@ -31,6 +31,7 @@
    :hash-set-remove
    :hash-set-map
    :hash-set-count
+   :hash-set-vector
 
    ;; reexports from gefjon-utils
    :define-class
@@ -157,3 +158,10 @@ Does no checking to see if SET already contains ELT."
 (|:| #'hash-set-count (-> (hash-set) unsigned-byte))
 (defun hash-set-count (set)
   (hash-table-count set))
+
+(|:| #'hash-set-vector (-> (hash-set) vector))
+(defun hash-set-vector (set
+                        &aux (vec (make-array (hash-set-count set)
+                                              :adjustable t
+                                              :fill-pointer 0)))
+  (hash-set-map (rcurry #'vector-push vec) set))

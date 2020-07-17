@@ -1,7 +1,8 @@
 (uiop:define-package :hindley-milner/repr-type
   (:mix
    :hindley-milner/prologue
-   :cl)
+   :cl
+   :iterate)
   (:import-from :alexandria :symbolicate)
   (:shadow :function)
   (:export
@@ -13,9 +14,7 @@
    :closure-func :fptr
    :closure-env :elts
    :gc-ptr :pointee
-   :stack-ptr :pointee
-   :literal
-   :contains-gc-ptr-p))
+   :literal))
 (cl:in-package :hindley-milner/repr-type)
 
 (deftype primitive-type ()
@@ -26,8 +25,7 @@
    (function-ptr ((inputs (vector repr-type))))
    (closure-func ((fptr function-ptr)))
    (closure-env ((elts (vector repr-type))))
-   (gc-ptr ((pointee repr-type)))
-   (stack-ptr ((pointee repr-type)))))
+   (gc-ptr ((pointee repr-type)))))
 
 (deftype literal ()
   '(or (member hm:|true| hm:|false|)
@@ -45,22 +43,28 @@
 
 (defparameter *opaque-ptr* (make-instance 'gc-ptr :pointee *byte*))
 
-(defgeneric contains-gc-ptr-p (type)
+(defgeneric gc-ptr-indices (type)
+  (:documentation "Returns `t' if TYPE is a `gc-ptr', or a tree of indices of `gc-ptr's within it.")
   (:method ((ptr gc-ptr))
     (declare (ignorable ptr))
     t)
   (:method ((closure closure-func))
     (declare (ignorable closure))
-    t)
+    '(1))
   (:method ((prim primitive))
     (declare (ignorable prim))
     nil)
   (:method ((fptr function-ptr))
     (declare (ignorable fptr))
     nil)
-  (:method ((ptr stack-ptr))
-    (declare (ignorable ptr))
-    nil)
   (:method ((env closure-env))
-    (reduce #'(lambda (bool elt) (or bool (contains-gc-ptr-p elt)))
-            (elts env))))
+    (iter
+      (for i upfrom 0)
+      (for field in-vector (elts env))
+      (for idxes-in-field = (gc-ptr-indices field))
+      (etypecase idxes-in-field
+        (null (next-iteration))
+        ((eql t) (collect (list i) into indices at beginning))
+        (cons (collect (cons i idxes-in-field)
+                into indices at beginning)))
+      (finally (return indices)))))

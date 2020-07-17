@@ -154,16 +154,26 @@
   (let* ((reg (corresponding-local (cps:name defn)))
          (fname (make-instance 'global
                                :name (name reg)
-                               :type (type reg))))
+                               :type (type reg)))
+         (env (make-instance 'local
+                             :name (format-gensym "~a-env" (name reg))
+                             :type (make-instance
+                                    'closure-env
+                                    :elts (map '(vector repr-type)
+                                               (compose #'extend-type #'cps:type)
+                                               (cps:closes-over defn))))))
     (with-procedure
         (fname (cps:arglist defn) (cps:closes-over defn))
       (transform-expr (cps:body defn)))
-    (insn 'make-closure
-          :dst reg
-          :func fname
+    (insn 'make-closure-env
+          :dst env
           :elts (read-from
                  (map '(vector cps:local) #'corresponding-local
-                      (cps:closes-over defn))))))
+                      (cps:closes-over defn))))
+    (insn 'make-closure-func
+          :dst reg
+          :env env
+          :func fname)))
 
 (defmethod transform-expr ((expr cps:proc))
   (add-proc expr)
@@ -196,9 +206,24 @@
           :if-false else)))
 
 (defmethod transform-expr ((expr cps:apply))
-  (insn 'call
-        :func (read-from (cps:func expr))
-        :args (read-from (cps:args expr))))
+  (let* ((closure-func (read-from (cps:func expr)))
+         (fptr (make-instance 'local
+                              :name (format-gensym "call-~a-func" (name closure-func))
+                              :type (fptr (type closure-func))))
+         (cenv (make-instance 'local
+                              :name (format-gensym "call-~a-env" (name closure-func))
+                              :type *opaque-ptr*)))
+    (insn 'extract-func
+          :dst fptr
+          :src closure-func)
+    (insn 'extract-env
+          :dst cenv
+          :src closure-func)
+    (insn 'call
+          :func fptr
+          :args (concatenate '(vector local)
+                             (list cenv)
+                             (read-from (cps:args expr))))))
 
 (defvar *main* (make-instance 'global
                               :name 'main

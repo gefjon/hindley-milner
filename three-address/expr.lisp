@@ -18,14 +18,15 @@
    :read-global :dst :src
    :set-global :dst :src
    :read-closure-env :dst :env :index
-   :make-closure :dst :func :elts
+   :make-closure-env :dst :elts :live-values
+   :make-closure-func :dst :env :func
+   :extract-env :dst :src
+   :extract-func :dst :src
    :primop :op :dst :args
    :pointer-cast :dst :src
    :branch :condition :if-true :if-false
    :call :func :args
    :dead :val
-   :save :src :dst
-   :restore :dst :src
 
    :basic-block :label :body
    
@@ -54,9 +55,17 @@
   ((read-closure-env ((dst local)
                       (env register)
                       (index index)))
-   (make-closure ((dst local)
-                  (func global)
-                  (elts (vector register))))
+   (make-closure-env ((dst local)
+                      (elts (vector local))
+                      ;; added in `liveness.lisp'
+                      (live-values (vector local) :may-init-unbound t)))
+   (make-closure-func ((dst local)
+                       (env local)
+                       (func global)))
+   (extract-env ((dst local)
+                 (src local)))
+   (extract-func ((dst local)
+                  (src local)))
    (pointer-cast ((dst local)
                   (src register)))
    (primop ((op operator)
@@ -69,15 +78,7 @@
           (args (vector register))))
 
    ;; added in `liveness.lisp'
-   (dead ((val local)))
-
-   ;; added in `save-restore.lisp'
-   (save ((src register)
-          ;; `dst' should have type pointer-to (type src)
-          (dst local)))
-   (restore ((dst local)
-             ;; `src' should have type pointer-to (type dst)
-             (src local)))))
+   (dead ((val local)))))
 
 (define-class basic-block
     ((label (optional symbol))

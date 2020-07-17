@@ -5,7 +5,8 @@
   (:mix-reexport
    :hindley-milner/three-address/expr
    :hindley-milner/three-address/trans
-   :hindley-milner/three-address/liveness)
+   :hindley-milner/three-address/liveness
+   )
   (:import-from :hindley-milner/cps :expr)
   (:export
    :3adr-transform))
@@ -13,4 +14,5 @@
 
 (|:| #'3adr-transform (-> (expr) program))
 (defun 3adr-transform (cps-program)
-  (liveness-annotate (three-address-transform-program cps-program)))
+  (liveness-annotate
+   (three-address-transform-program cps-program)))
