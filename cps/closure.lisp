@@ -1,6 +1,7 @@
-(uiop:define-package :hindley-milner/closure
+(uiop:define-package :hindley-milner/cps/closure
   (:mix
-   :hindley-milner/cps
+   :hindley-milner/cps/type
+   :hindley-milner/cps/expr
    :hindley-milner/prologue
    :iterate
    :cl)
@@ -9,12 +10,12 @@
   (:import-from :trivial-types
    :proper-list)
   (:export :make-closures-explicit))
-(cl:in-package :hindley-milner/closure)
+(cl:in-package :hindley-milner/cps/closure)
 
 (deftype local-vars ()
   '(proper-list local))
 
-(define-special *closure-env* closure-env
+(define-special *closure-env* closure-vars
     "a `CLOSURE-ENV' which will map variables for the current function to close over to enclosed variables.")
 
 (defmacro with-closure-env (&body body)

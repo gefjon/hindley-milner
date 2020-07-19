@@ -1,6 +1,6 @@
 (uiop:define-package :hindley-milner/three-address/expr
   (:mix
-   :hindley-milner/repr-type
+   :hindley-milner/three-address/type
    :hindley-milner/primop
    :hindley-milner/prologue
    :cl)

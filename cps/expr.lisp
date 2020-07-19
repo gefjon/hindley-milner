@@ -1,6 +1,6 @@
 (uiop:define-package :hindley-milner/cps/expr
   (:mix
-   :hindley-milner/repr-type
+   :hindley-milner/cps/type
    :hindley-milner/prologue
    :cl)
   (:import-from :hindley-milner/primop
@@ -8,7 +8,7 @@
   (:import-from :alexandria
    :symbolicate)
   (:shadow
-   :func :variable :let :if :apply :prog2)
+   :variable :let :if :apply)
   (:export
    :variable :type
    :local :name
@@ -25,7 +25,7 @@
    :throw :cont :arg))
 (cl:in-package :hindley-milner/cps/expr)
 
-(define-enum variable ((type type))
+(define-enum variable ((type repr-type))
   ((local ((name symbol)))
    (closure ((name symbol)
              (corresponding-local local)))

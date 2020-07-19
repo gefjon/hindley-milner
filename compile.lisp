@@ -11,9 +11,7 @@
   (:import-from :hindley-milner/monomorphize
    :monomorphize-program)
   (:import-from :hindley-milner/cps
-   :cps-transform)
-  (:import-from :hindley-milner/closure
-   :make-closures-explicit)
+   :cps-trans)
   (:import-from :hindley-milner/three-address
    :3adr-transform)
   (:export :compile))
@@ -24,7 +22,6 @@
          (ir1 (parse-program surface-syntax))
          (typed (infer-program-types ir1))
          (monomorphic (monomorphize-program typed))
-         (cps (cps-transform monomorphic))
-         (enclosed (make-closures-explicit cps))
-         (three-address (3adr-transform enclosed)))
+         (cps (cps-trans monomorphic))
+         (three-address (3adr-transform cps)))
     three-address))

@@ -7,12 +7,12 @@
    :symbol-concatenate
    :define-class
    :adjustable-vector :make-adjustable-vector :specialized-vector
-   :shallow-copy :map-slots
+   :shallow-copy :map-slots :reduce-slots
    :|:| :-> :void :optional)
   (:import-from :genhash
    :hashref)
   (:import-from :alexandria
-   :remove-from-plist :rcurry)
+   :remove-from-plist :rcurry :symbolicate)
   (:import-from :trivial-types
    :tuple)
   (:export
@@ -32,6 +32,8 @@
    :hash-set-map
    :hash-set-count
    :hash-set-vector
+   :standard-object-equalp
+   :define-primitive-types
 
    ;; reexports from gefjon-utils
    :define-class
@@ -165,3 +167,22 @@ Does no checking to see if SET already contains ELT."
                                               :adjustable t
                                               :fill-pointer 0)))
   (hash-set-map (rcurry #'vector-push vec) set))
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defgeneric standard-object-equalp (lhs rhs)
+    (:method (lhs rhs)
+      (equalp lhs rhs))
+    (:method ((lhs standard-object) (rhs standard-object))
+      (and (eq (class-of lhs) (class-of rhs))
+           (reduce-slots #'(lambda (so-far lhs-val rhs-val)
+                             (and so-far (standard-object-equalp lhs-val rhs-val)))
+                         t
+                         lhs rhs)))))
+
+(defmacro define-primitive-types (prim-class &body names)
+  (flet ((defprim (name)
+           (check-type name symbol)
+           `(defvar ,(symbolicate '* (symbol-name name) '*)
+              (make-instance ',prim-class
+                             :primitive ,name))))
+    `(progn ,@(mapcar #'defprim names))))

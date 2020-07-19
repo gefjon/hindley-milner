@@ -1,31 +1,33 @@
 (uiop:define-package :hindley-milner/three-address/trans
   (:mix
+   :hindley-milner/three-address/type
    :hindley-milner/three-address/expr
    :hindley-milner/prologue
-   :hindley-milner/repr-type
    :iterate
    :cl)
   (:import-from :hindley-milner/cps)
   (:import-from :alexandria
-   :with-gensyms :make-gensym :compose :when-let)
+   :with-gensyms :make-gensym :compose :when-let :eswitch)
   (:export
    :three-address-transform-program))
 (cl:in-package :hindley-milner/three-address/trans)
 
 (defgeneric extend-type (type)
-  (:method ((type primitive))
-    "Base case: leave `primitive' types untouched."
-    type)
-  (:method ((type function-ptr))
-    "Interesting case: add an `*opaque-ptr*' closure-env arg to `function's."
-    (make-instance 'function-ptr
-                   :inputs (concatenate '(vector repr-type)
-                                        (list *opaque-ptr*)
-                                        (map '(vector repr-type) #'extend-type
-                                             (inputs type)))))
-  (:method ((type repr-type))
-    "Recursive case: recurse on all other types."
-    (map-slots #'extend-type type)))
+  (:method ((type cps:primitive))
+    (eswitch (type)
+      (cps:*void* *void*)
+      (cps:*fixnum* *fixnum*)
+      (cps:*boolean* *boolean*)))
+  (:method ((type cps:function))
+    (let* ((normal-args (map '(vector repr-type) #'extend-type
+                             (cps:inputs type)))
+           (all-args (concatenate '(vector repr-type)
+                                  (list *opaque-ptr*)
+                                  normal-args))
+           (fptr (make-instance 'function-ptr
+                                :inputs all-args)))
+      (make-instance 'closure-func
+                     :fptr fptr))))
 
 (define-special *current-procedure* procedure)
 (define-special *program* program)
@@ -44,7 +46,6 @@
                       (body *current-bb*))
   (values))
 
-(|:| #'local-for-var (-> (cps:variable) local))
 (defun local-for-var (var)
   (ensure-get var *var-locals*
               (make-instance 'local
@@ -227,7 +228,7 @@
 
 (defvar *main* (make-instance 'global
                               :name 'main
-                              :type (make-instance 'function-ptr :inputs #(*opaque-ptr*))))
+                              :type (make-instance 'function-ptr :inputs (vector *opaque-ptr*))))
 (defvar *main-closure* (make-instance 'local
                                       :name 'main
                                       :type (make-instance 'closure-func

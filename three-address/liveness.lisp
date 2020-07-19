@@ -1,6 +1,6 @@
 (uiop:define-package :hindley-milner/three-address/liveness
   (:mix
-   :hindley-milner/repr-type
+   :hindley-milner/three-address/type
    :hindley-milner/prologue
    :hindley-milner/three-address/expr
    :iterate
