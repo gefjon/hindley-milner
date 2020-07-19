@@ -1,24 +1,24 @@
-(uiop:define-package :hindley-milner/monomorphize
-    (:nicknames :monomorphize)
+(uiop:define-package :hindley-milner/ir1/monomorphize
   (:mix
    :hindley-milner/prologue
-   :hindley-milner/ir1
+   :hindley-milner/ir1/expr
+   :hindley-milner/ir1/type
    :iterate
    :trivial-types
    :cl)
   (:import-from :genhash
    :hashref :make-generic-hash-table :register-test-designator)
-  (:import-from :hindley-milner/typecheck/unify
+  (:import-from :hindley-milner/ir1/typecheck/unify
    :unify)
   (:import-from
    :alexandria
    :with-gensyms
    :make-gensym)
-  (:import-from :hindley-milner/typecheck/substitute
+  (:import-from :hindley-milner/ir1/typecheck/substitute
    :apply-substitution)
   (:export
    :monomorphize-program))
-(cl:in-package :hindley-milner/monomorphize)
+(cl:in-package :hindley-milner/ir1/monomorphize)
 
 (defgeneric type-equalp (lhs rhs))
 (defgeneric type-hash (type))

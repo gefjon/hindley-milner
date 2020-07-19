@@ -1,18 +1,17 @@
-(uiop:define-package :hindley-milner/typecheck/infer
-    (:nicknames :infer)
+(uiop:define-package :hindley-milner/ir1/typecheck/infer
   (:mix
-   :hindley-milner/ir1
-   :hindley-milner/typecheck/substitute
+   :hindley-milner/ir1/expr
+   :hindley-milner/ir1/type
+   :hindley-milner/ir1/typecheck/substitute
    :hindley-milner/prologue
    :iterate
    :cl)
   (:import-from :trivial-types
    :association-list)
-  (:import-from :hindley-milner/ir1)
   (:export
    :infer-program
    :constraint :constraints :lhs :rhs))
-(cl:in-package :hindley-milner/typecheck/infer)
+(cl:in-package :hindley-milner/ir1/typecheck/infer)
 
 (deftype constraint ()
   '(cons type type))

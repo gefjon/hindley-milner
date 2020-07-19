@@ -2,8 +2,17 @@
   (:mix
    :hindley-milner/ir1/type
    :hindley-milner/ir1/expr
-   :hindley-milner/ir1/parse
    :cl)
+  (:import-from :hindley-milner/ir1/parse
+   :parse-program)
+  (:import-from :hindley-milner/ir1/monomorphize
+   :monomorphize-program)
+  (:import-from :hindley-milner/ir1/typecheck
+   :infer-program-types)
   (:nicknames :ir1)
-  (:reexport :hindley-milner/ir1/type :hindley-milner/ir1/expr :hindley-milner/ir1/parse))
-(cl:in-package :hindley-milner/ir1)
+  (:reexport :hindley-milner/ir1/type :hindley-milner/ir1/expr)
+  (:export ))
+(in-package :hindley-milner/ir1)
+
+(defun ir1-trans (surface-syntax)
+  (monomorphize-program (infer-program-types (parse-program surface-syntax))))

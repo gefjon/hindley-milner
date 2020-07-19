@@ -1,12 +1,11 @@
-(uiop:define-package :hindley-milner/typecheck/unify
-    (:nicknames :unify)
+(uiop:define-package :hindley-milner/ir1/typecheck/unify
   (:mix :hindley-milner/ir1/type :iterate :cl)
-  (:import-from :hindley-milner/typecheck/infer
+  (:import-from :hindley-milner/ir1/typecheck/infer
    :constraints :constraint :lhs :rhs)
-  (:import-from :hindley-milner/typecheck/substitute
+  (:import-from :hindley-milner/ir1/typecheck/substitute
    :substitution :apply-substitution)
   (:export :solve :unify))
-(cl:in-package :hindley-milner/typecheck/unify)
+(cl:in-package :hindley-milner/ir1/typecheck/unify)
 
 (declaim (ftype (function (constraints) substitution)
                 solve))

@@ -1,11 +1,10 @@
-(uiop:define-package :hindley-milner/typecheck/substitute
-  (:nicknames :substitute)
+(uiop:define-package :hindley-milner/ir1/typecheck/substitute
   (:import-from :trivial-types
    :association-list)
   (:mix :hindley-milner/subst :hindley-milner/ir1/type :cl :iterate)
   (:import-from :alexandria)
   (:export :substitution :apply-substitution :instantiate :generalize))
-(cl:in-package :hindley-milner/typecheck/substitute)
+(cl:in-package :hindley-milner/ir1/typecheck/substitute)
 
 (deftype substitution ()
   '(association-list type-variable type))
