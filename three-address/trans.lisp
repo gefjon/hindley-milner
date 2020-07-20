@@ -94,7 +94,7 @@
 (defun make-procedure (name arglist &optional closure-env)
   "Returns as multiple values a `procedure', its entry `basic-block', and the `local' which refers to its `closure-env'."
   (let* ((closure-env (make-instance 'closure-env
-                                     :elts (map '(vector type) #'cps:type
+                                     :elts (map '(vector type) (compose #'extend-type #'cps:type)
                                                 closure-env)))
          (*current-bb* (make-instance 'basic-block
                                       :label nil

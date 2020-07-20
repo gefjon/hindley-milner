@@ -1,12 +1,15 @@
 (uiop:define-package :hindley-milner/three-address
+  (:nicknames :3adr)
   (:mix
    :hindley-milner/prologue
-   :cl)
-  (:mix-reexport
+   :hindley-milner/three-address/type
    :hindley-milner/three-address/expr
    :hindley-milner/three-address/trans
    :hindley-milner/three-address/liveness
-   )
+   :cl)
+  (:reexport
+   :hindley-milner/three-address/type
+   :hindley-milner/three-address/expr)
   (:import-from :hindley-milner/cps :expr)
   (:export
    :3adr-transform))
