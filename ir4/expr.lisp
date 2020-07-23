@@ -22,6 +22,7 @@
    :local :name
    :const :val
    :undef :*undef*
+   :nullptr :*null*
 
    :arith-op
 
@@ -32,6 +33,7 @@
    :alloc-relocate :dst :token :index
    :alloc-result :dst :token
    :bitcast :dst :in-ty :in :out-ty
+   :ptrtoint :dst :in-ty :in :out-ty
    :extractvalue :dst :agg-ty :agg :indices
    :insertvalue :dst :agg-ty :agg :field-ty :field :indices
    :getelementptr :dst :agg-ty :ptr-ty :ptr :indices
@@ -64,9 +66,11 @@
   ((global ((name symbol)))
    (local ((name symbol)))
    (const ((val t)))
-   (undef ())))
+   (undef ())
+   (nullptr ())))
 
 (defvar *undef* (make-instance 'undef))
+(defvar *null* (make-instance 'nullptr))
 
 (deftype arith-op ()
   '(member :add :sub :mul :div))
@@ -76,10 +80,10 @@
         (if-true symbol)
         (if-false symbol)))
    (tailcall ((func val)
-              (args (vector (cons type val)))))
+              (args (vector (cons repr-type val)))))
    (alloc-call ((dst local)
-                (args (vector (cons type val)))
-                (live-ptrs (vector (cons type local)))))
+                (args (vector (cons repr-type val)))
+                (live-ptrs (vector (cons repr-type local)))))
    (alloc-relocate ((dst local)
                     (token local)
                     (index index)))
@@ -89,6 +93,10 @@
              (in-ty repr-type)
              (in val)
              (out-ty repr-type)))
+   (ptrtoint ((dst local)
+              (in-ty pointer)
+              (in val)
+              (out-ty integer)))
    (extractvalue ((dst local)
                   (agg-ty repr-type)
                   (agg val)

@@ -156,13 +156,15 @@
          (fname (make-instance 'global
                                :name (name reg)
                                :type (type reg)))
+         (env-ty (make-instance
+                  'closure-env
+                  :elts (map '(vector repr-type)
+                             (compose #'extend-type #'cps:type)
+                             (cps:closes-over defn))))
+         (ptr-to-env (make-instance 'gc-ptr :pointee env-ty))
          (env (make-instance 'local
                              :name (format-gensym "~a-env" (name reg))
-                             :type (make-instance
-                                    'closure-env
-                                    :elts (map '(vector repr-type)
-                                               (compose #'extend-type #'cps:type)
-                                               (cps:closes-over defn))))))
+                             :type ptr-to-env)))
     (with-procedure
         (fname (cps:arglist defn) (cps:closes-over defn))
       (transform-expr (cps:body defn)))

@@ -4,8 +4,15 @@
    :hindley-milner/ir4/expr
    :cl
    :iterate)
+  (:import-from :alexandria
+   :rcurry)
+  (:import-from :uiop
+   :emptyp)
   (:import-from :hindley-milner/three-address))
 (in-package :hindley-milner/ir4/trans)
+
+(define-special *reg-locals* (hash-map-of 3adr:local local))
+(define-special *globals* (hash-map-of 3adr:global global))
 
 (defgeneric ir4-transform (obj))
 (defgeneric transform-to-val (obj))
@@ -16,12 +23,14 @@
   (cons (transform-to-type obj)
         (transform-to-val obj)))
 
-(defmethod ir4-transform ((obj 3adr:program))
+(defmethod ir4-transform ((obj 3adr:program)
+                          &aux (*globals* (make-hash-table :test 'eq)))
   (make-instance 'program
                  :procs (map '(vector procedure) #'ir4-transform (3adr:procs obj))
                  :entry (ir4-transform (3adr:entry obj))))
 
-(defmethod ir4-transform ((obj 3adr:procedure))
+(defmethod ir4-transform ((obj 3adr:procedure)
+                          &aux (*reg-locals* (make-hash-table :test 'eq)))
   (make-instance 'procedure
                  :name (transform-to-val (3adr:name obj))
                  :args (map '(vector (cons repr-type local)) #'transform-to-arg (3adr:args obj))
@@ -41,12 +50,14 @@
     *current-bb*))
 
 (defmethod transform-to-val ((local 3adr:local))
-  (make-instance 'local
-                 :name (3adr:name local)))
+  (ensure-get local *reg-locals*
+              (make-instance 'local
+                             :name (3adr:name local))))
 
 (defmethod transform-to-val ((global 3adr:global))
-  (make-instance 'global
-                 :name (3adr:name global)))
+  (ensure-get global *globals*
+              (make-instance 'global
+                             :name (3adr:name global))))
 
 (defmethod transform-to-val ((const 3adr:constant))
   (make-instance 'const
@@ -106,8 +117,130 @@
              :ptr-ty ptr-ty
              :ptr elementptr))))
 
+(define-enum saved-tmp-info ((old local)
+                             (new local)
+                             (type repr-type))
+  ((gc-ptr-info ())
+   (struct-info ((ptrs (vector (cons index saved-tmp-info)))))))
+
+(|:| #'copy-local (-> (local) local))
+(defun copy-local (old-local)
+  (make-instance 'local
+                 :name (format-gensym "~a-copy" (name old-local))))
+
+(defgeneric type-saved-tmp-info (type old)
+  (:method ((type repr-type) old)
+    (declare (ignorable type old))
+    nil)
+  (:method ((type pointer) old)
+    (unless (typep (pointee type) 'function)
+      (make-instance 'gc-ptr-info
+                     :old old
+                     :new (copy-local old)
+                     :type type)))
+  (:method ((type struct) old)
+    (iter
+      (for i upfrom 0)
+      (for field in-vector (members type))
+      (for field-local = (make-instance 'local
+                                        :name (gensym "struct-elt")))
+      (for idxes-in-field = (type-saved-tmp-info field field-local))
+      (unless idxes-in-field (next-iteration))
+      (collect (cons i idxes-in-field)
+        result-type (vector (cons index saved-tmp-info))
+        into ptrs)
+      (finally
+       (return
+         (unless (emptyp ptrs)
+           (make-instance 'struct-info
+                          :old old
+                          :new (copy-local old)
+                          :type type
+                          :ptrs ptrs)))))))
+
+(defgeneric save (tmp-info)
+  (:method ((info gc-ptr-info))
+    (list (old info)))
+  (:method ((info struct-info))
+    (iter
+      (for (i . field) in-vector (ptrs info))
+      (instr 'extractvalue
+             :dst (old field)
+             :agg-ty (type info)
+             :agg (old info)
+             :indices (specialized-vector index i))
+      (appending (save field)))))
+
+(define-special *restore-idx* unsigned-byte)
+
+(defmacro post-increment (place)
+  `(let* ((val ,place))
+     (setf ,place (1+ val))
+     val))
+
+(defgeneric restore (tmp-info token)
+  (:method :around ((info saved-tmp-info) token)
+    (declare (ignorable token))
+    (setf (gethash (old info) *reg-locals*)
+          (new info)))
+  (:method ((info gc-ptr-info) token)
+    (instr 'alloc-relocate
+           :dst (new info)
+           :token token
+           :index (post-increment *restore-idx*)))
+  (:method ((info struct-info) token)
+    (with-slot-accessors (new old ptrs type) info
+      (iter
+        (for ct upfrom 0)
+        (for old-env initially old then new-env)
+        (for new-env = (if (= ct (1- (length ptrs))) ; last-time-p
+                           new
+                           (gen-local "~a-copy-~a-" (name old) ct)))
+        
+        (for (i . field) in-vector ptrs)
+        (restore field token)
+        (instr 'insertvalue
+               :dst new-env
+               :agg-ty type
+               :agg old-env
+               :field-ty (type field)
+               :field (new field)
+               :indices (specialized-vector index i))))))
+
 (defmethod transform-instr ((instr 3adr:make-closure-env))
-  (error "TODO! make closure env!"))
+  (with-slot-accessors (3adr:dst 3adr:elts 3adr:live-values) instr
+    (let* ((infos (iter
+                    (for 3adr:local in-vector 3adr:live-values)
+                    (for old-local = (transform-to-val 3adr:local))
+                    (for type = (transform-to-type 3adr:local))
+                    (appending (type-saved-tmp-info type old-local))))
+           (saves (map '(vector local) #'save infos))
+           (env-ty (transform-to-type 3adr:dst))
+           (size-ptr (gen-local "sizeof-~a-ptr" (3adr:name 3adr:dst)))
+           (size-int (gen-local "sizeof-~a-int" (3adr:name 3adr:dst)))
+           (token (gen-local "alloc-~a-token" (3adr:name 3adr:dst))))
+      (check-type env-ty pointer)
+      (instr 'getelementptr
+             :dst size-ptr
+             :agg-ty (pointee env-ty)
+             :ptr-ty env-ty
+             :ptr *null*
+             :indices (specialized-vector (cons integer index) (cons *i32* 1)))
+      (instr 'ptrtoint
+             :dst size-int
+             :in-ty env-ty
+             :in size-ptr
+             :out-ty *i64*)
+      (instr 'alloc-call
+             :dst token
+             :args (specialized-vector (cons repr-type val)
+                                       (cons *i64* size-int))
+             :live-ptrs saves)
+      (let* ((*restore-idx* 0))
+        (map nil (rcurry #'restore token) infos))
+      (instr 'alloc-result
+             :dst (transform-to-val 3adr:dst)
+             :token token))))
 
 (defmethod transform-instr ((instr 3adr:make-closure-func))
   (with-slot-accessors (3adr:dst 3adr:env 3adr:func) instr
