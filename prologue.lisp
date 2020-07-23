@@ -166,7 +166,8 @@ Does no checking to see if SET already contains ELT."
                         &aux (vec (make-array (hash-set-count set)
                                               :adjustable t
                                               :fill-pointer 0)))
-  (hash-set-map (rcurry #'vector-push vec) set))
+  (hash-set-map (rcurry #'vector-push vec) set)
+  vec)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defgeneric standard-object-equalp (lhs rhs)

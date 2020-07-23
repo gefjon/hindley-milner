@@ -155,7 +155,7 @@
   (let* ((reg (corresponding-local (cps:name defn)))
          (fname (make-instance 'global
                                :name (name reg)
-                               :type (type reg)))
+                               :type (fptr (type reg))))
          (env-ty (make-instance
                   'closure-env
                   :elts (map '(vector repr-type)

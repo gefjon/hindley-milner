@@ -63,10 +63,6 @@
   (make-instance 'const
                  :val (3adr:value const)))
 
-(defmethod transform-to-type ((global 3adr:global))
-  (make-instance 'pointer
-                 :pointee (transform-to-type (3adr:type global))))
-
 (defmethod transform-to-type ((reg 3adr:register))
   (transform-to-type (3adr:type reg)))
 
@@ -179,7 +175,7 @@
      val))
 
 (defgeneric restore (tmp-info token)
-  (:method :around ((info saved-tmp-info) token)
+  (:method :after ((info saved-tmp-info) token)
     (declare (ignorable token))
     (setf (gethash (old info) *reg-locals*)
           (new info)))
@@ -210,10 +206,14 @@
 (defmethod transform-instr ((instr 3adr:make-closure-env))
   (with-slot-accessors (3adr:dst 3adr:elts 3adr:live-values) instr
     (let* ((infos (iter
-                    (for 3adr:local in-vector 3adr:live-values)
+                    (for 3adr:local in (concatenate 'list
+                                                    3adr:live-values
+                                                    3adr:elts))
                     (for old-local = (transform-to-val 3adr:local))
                     (for type = (transform-to-type 3adr:local))
-                    (appending (type-saved-tmp-info type old-local))))
+                    (for info = (type-saved-tmp-info type old-local))
+                    (when info
+                      (collecting info))))
            (saves (map '(vector local) #'save infos))
            (env-ty (transform-to-type 3adr:dst))
            (size-ptr (gen-local "sizeof-~a-ptr" (3adr:name 3adr:dst)))

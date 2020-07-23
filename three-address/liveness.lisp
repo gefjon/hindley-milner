@@ -120,7 +120,7 @@
 (def-inputs-outputs pointer-cast (src) (dst))
 (def-inputs-outputs primop (args) (dst))
 (def-inputs-outputs branch (condition))
-(def-inputs-outputs call (args))
+(def-inputs-outputs call (func args))
 
 (defun make-unborn (local)
   (hash-set-remove local *live-set*)
@@ -128,8 +128,10 @@
 
 (defmethod liveness-annotate
     ((instr instr)
-     &aux (inputs (inputs instr)))
-  (mapc #'make-unborn (outputs instr))
+     &aux (inputs (inputs instr))
+       (outputs (outputs instr)))
+  (mapc #'die-if-not-live outputs)
+  (mapc #'make-unborn outputs)
   (mapc #'die-if-not-live inputs)
   (add-instr instr)
   (mapc #'make-live inputs)
