@@ -327,7 +327,7 @@ terms that must be computed prior to the call."
 (defvar *exit-continuation* (make-instance 'local
                                            :name 'exit
                                            :type (make-instance 'function
-                                                                :inputs #()))
+                                                                :inputs (specialized-vector repr-type *fixnum*)))
   "the continuation to exit the program")
 
 (defun cps-transform (typed-ir1-program)

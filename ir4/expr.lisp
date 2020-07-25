@@ -3,7 +3,7 @@
    :hindley-milner/prologue
    :cl)
   (:shadow
-   :integer :function :cond)
+   :integer :function :cond :type)
   (:export
    :index
 
@@ -29,9 +29,9 @@
    :instr
    :br :cond :if-true :if-false
    :tailcall :func :args
-   :alloc-call :dst :token :base-offset
-   :alloc-relocate :dst :token :index
-   :alloc-result :dst :token
+   :alloc-call :dst :arg :live-ptrs
+   :alloc-relocate :dst :type :token :index
+   :alloc-result :dst :type :token
    :bitcast :dst :in-ty :in :out-ty
    :ptrtoint :dst :in-ty :in :out-ty
    :extractvalue :dst :agg-ty :agg :indices
@@ -39,6 +39,7 @@
    :getelementptr :dst :agg-ty :ptr-ty :ptr :indices
    :load :dst :ty :ptr-ty :ptr
    :arith :dst :op :ty :lhs :rhs
+   :ret
 
    :basic-block :label :body
    :procedure :name :args :body
@@ -82,12 +83,14 @@
    (tailcall ((func val)
               (args (vector (cons repr-type val)))))
    (alloc-call ((dst local)
-                (args (vector (cons repr-type val)))
+                (arg (cons repr-type val))
                 (live-ptrs (vector (cons repr-type local)))))
    (alloc-relocate ((dst local)
+                    (type repr-type)
                     (token local)
                     (index index)))
    (alloc-result ((dst local)
+                  (type repr-type)
                   (token local)))
    (bitcast ((dst local)
              (in-ty repr-type)
@@ -120,7 +123,8 @@
            (op arith-op)
            (ty repr-type)
            (lhs val)
-           (rhs val)))))
+           (rhs val)))
+   (ret ())))
 
 (define-class basic-block
     ((label (or null symbol))
@@ -128,7 +132,7 @@
 
 (define-class procedure
     ((name global)
-     (args (vector (cons type local)))
+     (args (vector (cons repr-type local)))
      (body (vector basic-block))))
 
 (define-class program
