@@ -38,6 +38,7 @@
    :insertvalue :dst :agg-ty :agg :field-ty :field :indices
    :getelementptr :dst :agg-ty :ptr-ty :ptr :indices
    :load :dst :ty :ptr-ty :ptr
+   :store :ty :ptr-ty :ptr :val
    :arith :dst :op :ty :lhs :rhs
    :ret
 
@@ -119,6 +120,10 @@
           (ty repr-type)
           (ptr-ty pointer)
           (ptr val)))
+   (store ((ty repr-type)
+           (ptr-ty pointer)
+           (ptr val)
+           (val val)))
    (arith ((dst local)
            (op arith-op)
            (ty repr-type)

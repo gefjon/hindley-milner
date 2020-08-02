@@ -221,6 +221,17 @@
   (emit (ptr instr))
   (newline))
 
+(defmethod emit ((instr store))
+  (write-out "store ")
+  (emit (ty instr))
+  (space)
+  (emit (val instr))
+  (comma)
+  (emit (ptr-ty instr))
+  (space)
+  (emit (ptr instr))
+  (newline))
+
 (defmethod emit ((instr arith))
   (emit (dst instr))
   (write-out " = ")

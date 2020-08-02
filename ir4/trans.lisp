@@ -72,6 +72,9 @@
 (defmethod transform-to-type ((reg 3adr:register))
   (transform-to-type (3adr:type reg)))
 
+(defmethod transform-to-type ((global 3adr:global))
+  (transform-to-type (3adr:type global)))
+
 (defmethod transform-to-type ((prim 3adr:primitive))
   (ecase (3adr:primitive prim)
     (:void (make-instance 'void))
@@ -212,6 +215,24 @@
                :field (new field)
                :indices (specialized-vector index i))))))
 
+(|:| #'insert-closure-element (-> (local pointer val repr-type index) void))
+(defun insert-closure-element (env-ptr env-ptr-ty elt el-ty idx)
+  (let* ((dst (gen-local "elementptr-~a" (name elt))))
+    (instr 'getelementptr
+           :dst dst
+           :agg-ty (pointee env-ptr-ty)
+           :ptr-ty env-ptr-ty
+           :ptr env-ptr
+           :indices (specialized-vector (cons integer val)
+                                        (cons *i32* (make-instance 'const :val 0))
+                                        (cons *i32* (make-instance 'const :val idx))))
+    (instr 'store
+           :ty el-ty
+           :ptr-ty (make-instance 'pointer :pointee el-ty)
+           :ptr dst
+           :val elt))
+  (values))
+
 (defmethod transform-instr ((instr 3adr:make-closure-env))
   (with-slot-accessors (3adr:dst 3adr:elts 3adr:live-values) instr
     (let* ((infos (iter
@@ -228,14 +249,17 @@
            (env-ty (transform-to-type 3adr:dst))
            (size-ptr (gen-local "sizeof-~a-ptr" (3adr:name 3adr:dst)))
            (size-int (gen-local "sizeof-~a-int" (3adr:name 3adr:dst)))
-           (token (gen-local "alloc-~a-token" (3adr:name 3adr:dst))))
+           (token (gen-local "alloc-~a-token" (3adr:name 3adr:dst)))
+           (untyped-env-ptr (transform-to-val 3adr:dst))
+           (typed-env-ptr (gen-local "closure-env-~a" (3adr:name 3adr:dst))))
       (check-type env-ty pointer)
       (instr 'getelementptr
              :dst size-ptr
              :agg-ty (pointee env-ty)
              :ptr-ty env-ty
              :ptr *null*
-             :indices (specialized-vector (cons integer index) (cons *i32* 1)))
+             :indices (specialized-vector (cons integer val)
+                                          (cons *i32* (make-instance 'const :val 1))))
       (instr 'ptrtoint
              :dst size-int
              :in-ty env-ty
@@ -248,9 +272,21 @@
       (let* ((*restore-idx* 0))
         (map nil (rcurry #'restore token) infos))
       (instr 'alloc-result
-             :dst (transform-to-val 3adr:dst)
-             :type (transform-to-type 3adr:dst)
-             :token token))))
+             :dst untyped-env-ptr
+             :type (transform-to-type 3adr:*opaque-ptr*)
+             :token token)
+      (instr 'bitcast
+             :dst typed-env-ptr
+             :in-ty (transform-to-type 3adr:*opaque-ptr*)
+             :in untyped-env-ptr
+             :out-ty env-ty)
+      (iter
+        (for idx from 0)
+        (for src in-vector 3adr:elts)
+        (insert-closure-element typed-env-ptr env-ty
+                                (transform-to-val src)
+                                (transform-to-type src)
+                                idx)))))
 
 (defmethod transform-instr ((instr 3adr:make-closure-func))
   (with-slot-accessors (3adr:dst 3adr:env 3adr:func) instr

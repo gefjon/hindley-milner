@@ -230,20 +230,17 @@
 
 (defvar *main* (make-instance 'global
                               :name 'main
-                              :type (make-instance 'function-ptr :inputs (vector *opaque-ptr*))))
-(defvar *main-closure* (make-instance 'local
-                                      :name 'main
-                                      :type (make-instance 'closure-func
-                                                           :fptr (type *main*))))
+                              :type (make-instance 'function-ptr :inputs (vector *opaque-ptr*
+                                                                                 (extend-type (cps:type hindley-milner/cps/trans:*exit-continuation*))))))
 
 (defmacro with-program (&body body)
-  `(with-procedure (*main* () () :add nil)
-     (let* ((*var-locals* (make-hash-table :test #'eq))
-            (*program* (make-instance 'program
-                                      :procs (adjustable-vector procedure)
-                                      :entry *current-procedure*)))
-     ,@body
-     *program*)))
+  `(let* ((*var-locals* (make-hash-table :test #'eq)))
+     (with-procedure (*main* (specialized-vector cps:local hindley-milner/cps/trans:*exit-continuation*) () :add nil)
+       (let* ((*program* (make-instance 'program
+                                        :procs (adjustable-vector procedure)
+                                        :entry *current-procedure*)))
+         ,@body
+         *program*))))
 
 (defun three-address-transform-program (cps-program)
   (with-program
