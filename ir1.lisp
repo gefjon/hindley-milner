@@ -11,7 +11,7 @@
    :infer-program-types)
   (:nicknames :ir1)
   (:reexport :hindley-milner/ir1/type :hindley-milner/ir1/expr)
-  (:export ))
+  (:export :ir1-trans))
 (in-package :hindley-milner/ir1)
 
 (defun ir1-trans (surface-syntax)

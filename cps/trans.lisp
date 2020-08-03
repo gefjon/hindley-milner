@@ -1,12 +1,13 @@
 (uiop:define-package :hindley-milner/cps/trans
-    (:mix
-     :hindley-milner/cps/expr
-     :hindley-milner/cps/type
-     :hindley-milner/prologue
-     :iterate
-     :cl)
-    (:import-from :trivial-types
-     :proper-list :association-list)
+  (:mix
+   :hindley-milner/subst
+   :hindley-milner/cps/expr
+   :hindley-milner/cps/type
+   :hindley-milner/prologue
+   :iterate
+   :cl)
+  (:import-from :trivial-types
+   :proper-list :association-list)
   (:import-from :alexandria
    :make-gensym)
   (:import-from :hindley-milner/ir1)

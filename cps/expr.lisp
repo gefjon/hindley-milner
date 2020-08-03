@@ -5,6 +5,8 @@
    :cl)
   (:import-from :hindley-milner/primop
    :operator)
+  (:import-from :hindley-milner/subst
+   :subst-all-slots :subst-atom)
   (:import-from :alexandria
    :symbolicate)
   (:shadow
@@ -29,7 +31,8 @@
   ((local ((name symbol)))
    (closure ((name symbol)
              (corresponding-local local)))
-   (constant ((value t)))))
+   (constant ((value t))))
+  :superclasses (subst-atom))
 
 (deftype closure-vars ()
   '(adjustable-vector closure))
@@ -48,4 +51,5 @@
         (then-clause expr)
         (else-clause expr)))
    (apply ((func variable)
-           (args (vector variable))))))
+           (args (vector variable)))))
+  :superclasses (subst-all-slots))
