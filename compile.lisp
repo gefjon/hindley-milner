@@ -12,13 +12,15 @@
    :3adr-transform)
   (:import-from :hindley-milner/ir4
    :ir4-trans)
+  (:import-from :hindley-milner/llvm-emit
+   :emit-to-file)
   (:export :compile))
 (cl:in-package :hindley-milner/compile)
 
-(defun compile (filename)
-  (let* ((surface-syntax (read-program-from-file filename))
+(defun compile (infile outfile)
+  (let* ((surface-syntax (read-program-from-file infile))
          (ir1 (ir1-trans surface-syntax))
          (cps (cps-trans ir1))
          (three-address (3adr-transform cps))
          (ir4 (ir4-trans three-address)))
-    ir4))
+    (emit-to-file outfile ir4)))

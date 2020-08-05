@@ -38,11 +38,13 @@
 (defun emit-to-file (filename program)
   (with-open-file (*emit-out* filename :direction :output
                                        :if-exists :supersede)
-    (emit program)))
+    (emit-program program)))
 
-(defmethod emit ((program program))
-  (map nil #'emit (procs program))
-  (emit (entry program)))
+(defun emit-program (program)
+  (write-out (uiop:read-file-string (merge-pathnames "header.llvm"
+                                                     *load-pathname*)))
+  (map nil #'emit-proc (procs program))
+  (emit-proc (entry program) :linkage "external"))
 
 (defmethod emit ((local local))
   (fmt "%~a" (name local)))
@@ -62,12 +64,14 @@
     (emit val))
   (write-out #\)))
 
-(defmethod emit ((proc procedure))
-  (write-out "define \"tailcc\" void ")
+(defun emit-proc (proc &key (linkage "private"))
+  (write-out "define ")
+  (write-out linkage)
+  (write-out " \"tailcc\" void")
   (emit (name proc))
   (space)
   (emit-arglist (args proc))
-  (write-out " gc \"statepoint-example\" {")
+  (write-out " noreturn gc \"statepoint-example\" {")
   (newline)
   (map nil #'emit (body proc))
   (write-out #\})
@@ -92,12 +96,15 @@
   (newline))
 
 (defmethod emit ((instr tailcall))
-  (write-out "musttail call void ")
+  (write-out "tail call \"tailcc\" void ")
   (emit (func instr))
   (emit-arglist (args instr))
+  (write-out " noreturn")
   (newline))
 
 (defvar *zero* (make-instance 'const :val 0))
+
+(defvar *one* (make-instance 'const :val 1))
 
 (defvar *alloc-fn* (make-instance 'pointer
                                   :pointee
@@ -107,21 +114,33 @@
 (defvar *gc-alloc* (make-instance 'global
                                   :name '|gcalloc|))
 
+(defparameter *statepoint-call-type*
+  "token (i64, i32, i8* (i64)*, i32, i32, ...)")
+
 (defmethod emit ((instr alloc-call))
   (emit (dst instr))
-  (write-out " = notail call token @llvm.experimental.gc.statepoint")
+  (write-out " = notail call ")
+  (write-out *statepoint-call-type*)
+  (write-out " @llvm.experimental.gc.statepoint ")
   (emit-arglist (concatenate '(vector (cons repr-type val))
                              (list (cons *i64* *zero*) ; id
                                    (cons *i32* *zero*) ; patch bytes
                                    (cons *alloc-fn* *gc-alloc*) ; callee
-                                   (cons *i64* *zero*) ; flags
+                                   (cons *i32* *one*) ; n-args
+                                   (cons *i32* *zero*) ; flags
                                    (arg instr) ; args
-                                   (cons *i64* *zero*) ; trans arg count
-                                   (cons *i64* *zero*)) ; deopt arg count
-                             (live-ptrs instr)))
+                                   (cons *i32* *zero*) ; num transition arguments
+                                   (cons *i32* *zero*) ; num deopt args
+                                   )
+                             (live-ptrs instr)
+                             ))
   (newline))
 
-(defmethod emit ((instr alloc-relocate))
+(defparameter *statepoint-n-args* 8
+  "The number of arguments in a statepoint call, excluding gc-live values")
+
+(defmethod emit ((instr alloc-relocate)
+                 &aux (idx (+ *statepoint-n-args* (index instr))))
   (emit (dst instr))
   (write-out " = notail call ")
   (emit (type instr))
@@ -130,11 +149,11 @@
   (comma)
   (emit *i32*)
   (space)
-  (emit (index instr))
+  (emit idx)
   (comma)
   (emit *i32*)
   (space)
-  (emit (index instr))
+  (emit idx)
   (write-out #\))
   (newline))
 

@@ -1,0 +1,8 @@
+declare "fastcc" i8* @gcalloc (i64) allocsize(0) noinline gc "statepoint-example"
+
+declare token @llvm.experimental.gc.statepoint (i64 %id, i32 %n_patch_bytes, i8* (i64)* %callee, i32 %n_args, i32 %flags, ...)
+
+declare i8* @llvm.experimental.gc.result (token %statepoint)
+
+declare i8* @llvm.experimental.gc.relocate (token %statepoint, i32 %base, i32 %pointer)
+
