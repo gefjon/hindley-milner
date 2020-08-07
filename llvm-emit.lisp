@@ -44,7 +44,7 @@
   (write-out (uiop:read-file-string (merge-pathnames "header.llvm"
                                                      *load-pathname*)))
   (map nil #'emit-proc (procs program))
-  (emit-proc (entry program) :linkage "external"))
+  (emit-proc (entry program) :linkage "external" :calling-convention "ccc"))
 
 (defmethod emit ((local local))
   (fmt "%~a" (name local)))
@@ -64,10 +64,12 @@
     (emit val))
   (write-out #\)))
 
-(defun emit-proc (proc &key (linkage "private"))
+(defun emit-proc (proc &key (linkage "private") (calling-convention "tailcc"))
   (write-out "define ")
   (write-out linkage)
-  (write-out " \"tailcc\" void")
+  (space)
+  (prin1 calling-convention *emit-out*)
+  (write-out " void ")
   (emit (name proc))
   (space)
   (emit-arglist (args proc))

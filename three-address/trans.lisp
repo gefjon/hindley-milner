@@ -228,8 +228,8 @@
                              (list cenv)
                              (read-from (cps:args expr))))))
 
-(defvar *main* (make-instance 'global
-                              :name 'main
+(defparameter *main* (make-instance 'global
+                              :name '|hm_main|
                               :type (make-instance 'function-ptr :inputs (vector *opaque-ptr*
                                                                                  (extend-type (cps:type hindley-milner/cps/trans:*exit-continuation*))))))
 
