@@ -1,4 +1,4 @@
-declare "fastcc" i8* @gcalloc (i64) allocsize(0) noinline gc "statepoint-example"
+declare "ccc" i8* @gcalloc (i64) allocsize(0) noinline
 
 declare token @llvm.experimental.gc.statepoint (i64 %id, i32 %n_patch_bytes, i8* (i64)* %callee, i32 %n_args, i32 %flags, ...)
 
