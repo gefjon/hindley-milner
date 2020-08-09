@@ -18,7 +18,7 @@
    :ir4-trans)
   (:import-from :hindley-milner/llvm-emit
    :emit-to-file)
-  (:export :compile))
+  (:export :compile :*compile-output* :*compile-error*))
 (in-package :hindley-milner/compile)
 
 (|:| #'compile-to-ll (-> (pathname pathname) void))
@@ -31,6 +31,11 @@
     (emit-to-file ll-outfile ir4))
   (values))
 
+(|:| *compile-output* stream)
+(defvar *compile-output* *standard-output*)
+(|:| *compile-error* stream)
+(defvar *compile-error* *error-output*)
+
 (defparameter *runtime-o-path*
   (output-file (make-operation 'compile-op)
                (find-component (find-system :hindley-milner/runtime)
@@ -42,13 +47,16 @@
                      "-o" (namestring exe-outfile)
                      (namestring ll-infile)
                      (namestring *runtime-o-path*))
-               :error-stream t))
+               :error-output *compile-error*
+               :output *compile-output*))
 
 (|:| #'asmify (-> (pathname pathname) void))
 (defun asmify (ll-infile s-outfile)
   (run-program (list "llc"
                      "-o" (namestring s-outfile)
-                     (namestring ll-infile))))
+                     (namestring ll-infile))
+               :error-output *compile-error*
+               :output *compile-output*))
 
 (|:| #'compile (-> ((or string pathname) (or string pathname)) void))
 (defun compile (infile outfile)
