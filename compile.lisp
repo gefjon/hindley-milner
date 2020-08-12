@@ -36,17 +36,22 @@
 (|:| *compile-error* stream)
 (defvar *compile-error* *error-output*)
 
-(defparameter *runtime-o-path*
-  (output-file (make-operation 'compile-op)
-               (find-component (find-system :hindley-milner/runtime)
-                               "main")))
+(defparameter *runtime-components* '("main" "gc"))
+
+(defun runtime-o-path (component)
+  (namestring
+   (output-file (make-operation 'compile-op)
+                (find-component (find-system :hindley-milner/runtime)
+                                component))))
+
+(defparameter *runtime-o-paths* (mapcar #'runtime-o-path *runtime-components*))
 
 (|:| #'link (-> (pathname pathname) void))
 (defun link (ll-infile exe-outfile)
-  (run-program (list "clang" "-Wall" "-std=c11"
-                     "-o" (namestring exe-outfile)
-                     (namestring ll-infile)
-                     (namestring *runtime-o-path*))
+  (run-program (append (list "clang" "-Wall" "-std=c11"
+                             "-o" (namestring exe-outfile)
+                             (namestring ll-infile))
+                       *runtime-o-paths*)
                :error-output *compile-error*
                :output *compile-output*))
 

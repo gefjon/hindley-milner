@@ -16,7 +16,8 @@
    :struct :members
 
    :*i1* :*i8* :*i32* :*i64*
-   
+   :*void* :*opaque-ptr* :*double-star* :*gc-recurse-func*
+
    :val
    :global :name
    :local :name
@@ -24,14 +25,16 @@
    :undef :*undef*
    :nullptr :*null*
 
+   :*zero* :*one*
+   :*gcalloc* :*collect-and-relocate*
+   
    :arith-op
 
    :instr
    :br :cond :if-true :if-false
    :tailcall :func :args
-   :alloc-call :dst :arg :live-ptrs
-   :alloc-relocate :dst :type :token :index
-   :alloc-result :dst :type :token
+   :alloca :dst :type :ct-type :ct
+   :c-call :dst :ret :func :args
    :bitcast :dst :in-ty :in :out-ty
    :ptrtoint :dst :in-ty :in :out-ty
    :extractvalue :dst :agg-ty :agg :indices
@@ -43,7 +46,7 @@
    :ret
 
    :basic-block :label :body
-   :procedure :name :args :body
+   :procedure :name :calling-convention :args :body
    :program :procs :entry))
 (in-package :hindley-milner/ir4/expr)
 
@@ -55,7 +58,7 @@
    (void ())
    (integer ((bitwidth index)))
    (function ((inputs (vector repr-type))
-              (output repr-type :initform (make-instance 'void))))
+              (output repr-type :initform *void*)))
    (pointer ((pointee repr-type)))
    (struct ((members (vector repr-type))))))
 
@@ -64,12 +67,31 @@
 (defvar *i32* (make-instance 'integer :bitwidth 32))
 (defvar *i64* (make-instance 'integer :bitwidth 64))
 
+(defvar *void* (make-instance 'void))
+(defvar *opaque-ptr* (make-instance 'pointer :pointee *i8*))
+(defvar *double-star* (make-instance 'pointer :pointee *opaque-ptr*))
+
+(defvar *gc-recurse-func*
+  (make-instance 'pointer
+                 :pointee (make-instance 'function
+                                         :inputs (specialized-vector
+                                                  repr-type
+                                                  *opaque-ptr* ; old
+                                                  *opaque-ptr* ; new
+                                                  ))))
+
 (define-enum val ()
   ((global ((name symbol)))
    (local ((name symbol)))
    (const ((val t)))
    (undef ())
    (nullptr ())))
+
+(defvar *zero* (make-instance 'const :val 0))
+(defvar *one* (make-instance 'const :val 1))
+
+(defvar *gcalloc* (make-instance 'global :name '|gcalloc|))
+(defvar *collect-and-relocate* (make-instance 'global :name '|collect_and_relocate|))
 
 (defvar *undef* (make-instance 'undef))
 (defvar *null* (make-instance 'nullptr))
@@ -83,16 +105,14 @@
         (if-false symbol)))
    (tailcall ((func val)
               (args (vector (cons repr-type val)))))
-   (alloc-call ((dst local)
-                (arg (cons repr-type val))
-                (live-ptrs (vector (cons repr-type local)))))
-   (alloc-relocate ((dst local)
-                    (type repr-type)
-                    (token local)
-                    (index index)))
-   (alloc-result ((dst local)
-                  (type repr-type)
-                  (token local)))
+   (alloca ((dst local)
+            (type repr-type)
+            (ct-type integer)
+            (ct val)))
+   (c-call ((dst local :may-init-unbound t)
+            (ret repr-type)
+            (func val)
+            (args (vector (cons repr-type val)))))
    (bitcast ((dst local)
              (in-ty repr-type)
              (in val)
@@ -115,7 +135,7 @@
                    (agg-ty repr-type)
                    (ptr-ty pointer)
                    (ptr val)
-                   (indices (vector (cons integer val)))))
+                   (indices (vector (cons repr-type val)))))
    (load ((dst local)
           (ty repr-type)
           (ptr-ty pointer)
@@ -137,6 +157,7 @@
 
 (define-class procedure
     ((name global)
+     (calling-convention (member :ccc :tailcc))
      (args (vector (cons repr-type local)))
      (body (vector basic-block))))
 

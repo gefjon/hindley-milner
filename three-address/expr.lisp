@@ -36,6 +36,8 @@
 
    :program :procs :entry :globals
 
+   :*main*
+
    ;; reexports
    :type :operator)
   (:shadow :throw :ignore))
@@ -93,3 +95,8 @@
 (define-class program
     ((procs (vector procedure))
      (entry procedure)))
+
+(defparameter *main* (make-instance 'global
+                              :name '|hm_main|
+                              :type (make-instance 'function-ptr :inputs (vector *opaque-ptr*
+                                                                                 (make-instance 'function-ptr :inputs (vector *opaque-ptr* *fixnum*))))))

@@ -44,7 +44,7 @@
   (write-out (uiop:read-file-string (merge-pathnames "header.llvm"
                                                      *load-pathname*)))
   (map nil #'emit-proc (procs program))
-  (emit-proc (entry program) :linkage "external" :calling-convention "ccc"))
+  (emit-proc (entry program) :linkage "external"))
 
 (defmethod emit ((local local))
   (fmt "%~a" (name local)))
@@ -64,11 +64,12 @@
     (emit val))
   (write-out #\)))
 
-(defun emit-proc (proc &key (linkage "private") (calling-convention "tailcc"))
+(defun emit-proc (proc &key (linkage "private"))
   (write-out "define ")
   (write-out linkage)
   (space)
-  (prin1 calling-convention *emit-out*)
+  (prin1 (string-downcase (symbol-name (calling-convention proc)))
+         *emit-out*)
   (write-out " void ")
   (emit (name proc))
   (space)
@@ -119,53 +120,24 @@
 (defparameter *statepoint-call-type*
   "token (i64, i32, i8* (i64)*, i32, i32, ...)")
 
-(defmethod emit ((instr alloc-call))
+(defmethod emit ((instr alloca))
   (emit (dst instr))
-  (write-out " = notail call ")
-  (write-out *statepoint-call-type*)
-  (write-out " @llvm.experimental.gc.statepoint ")
-  (emit-arglist (concatenate '(vector (cons repr-type val))
-                             (list (cons *i64* *zero*) ; id
-                                   (cons *i32* *zero*) ; patch bytes
-                                   (cons *alloc-fn* *gc-alloc*) ; callee
-                                   (cons *i32* *one*) ; n-args
-                                   (cons *i32* *zero*) ; flags
-                                   (arg instr) ; args
-                                   (cons *i32* *zero*) ; num transition arguments
-                                   (cons *i32* *zero*) ; num deopt args
-                                   )
-                             (live-ptrs instr)
-                             ))
+  (write-out " = alloca ")
+  (emit (type instr))
+  (comma)
+  (emit (ct-type instr))
+  (space)
+  (emit (ct instr))
   (newline))
 
-(defparameter *statepoint-n-args* 8
-  "The number of arguments in a statepoint call, excluding gc-live values")
-
-(defmethod emit ((instr alloc-relocate)
-                 &aux (idx (+ *statepoint-n-args* (index instr))))
+(defmethod emit ((instr c-call))
   (emit (dst instr))
   (write-out " = notail call ")
-  (emit (type instr))
-  (write-out " @llvm.experimental.gc.relocate (token ")
-  (emit (token instr))
-  (comma)
-  (emit *i32*)
+  (emit (ret instr))
   (space)
-  (emit idx)
-  (comma)
-  (emit *i32*)
+  (emit (func instr))
   (space)
-  (emit idx)
-  (write-out #\))
-  (newline))
-
-(defmethod emit ((instr alloc-result))
-  (emit (dst instr))
-  (write-out " = notail call ")
-  (emit (type instr))
-  (write-out " @llvm.experimental.gc.result (token ")
-  (emit (token instr))
-  (write-out #\))
+  (emit-arglist (args instr))
   (newline))
 
 (defmethod emit ((instr bitcast))

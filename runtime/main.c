@@ -1,31 +1,26 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include "types.h" // for fixnum, gc_ptr
+#include "gc.h" // for thread_init
+#include <stdlib.h> // for exit, EXIT_FAILURE
 
-typedef uint8_t *cenv_ty;
-#define closure_ty(...) struct { void(*func)(cenv_ty, __VA_ARGS__); cenv_ty env; }
+#define closure_ty(...) \
+  struct { void(*func)(gc_ptr env, __VA_ARGS__); gc_ptr env; }
 
-typedef closure_ty(int64_t) exit_closure;
+typedef closure_ty(fixnum) exit_closure;
 
-extern _Noreturn void hm_main(cenv_ty, exit_closure);
+extern _Noreturn void hm_main(gc_ptr, exit_closure);
 
-_Noreturn void exit_fn(cenv_ty env, int64_t status) {
+_Noreturn void exit_fn(gc_ptr env, fixnum status) {
   exit(status);
 }
 
 exit_closure exit_c = { .func = exit_fn, .env = NULL };
 
-int main(int argc, char **argv) {
-  hm_main(NULL, exit_c);
-  exit(EXIT_FAILURE);
+void thread_init() {
+  gc_thread_init();
 }
 
-uint8_t *gcalloc(uint64_t size) {
-  if (!size) {
-    return NULL;
-  }
-  uint8_t *buf = malloc(size);
-  if (!buf) {
-    exit(EXIT_FAILURE);
-  }
-  return buf;
+int main(int argc, char **argv) {
+  thread_init();
+  hm_main(NULL, exit_c);
+  exit(EXIT_FAILURE);
 }

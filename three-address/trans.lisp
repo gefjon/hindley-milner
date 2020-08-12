@@ -228,11 +228,6 @@
                              (list cenv)
                              (read-from (cps:args expr))))))
 
-(defparameter *main* (make-instance 'global
-                              :name '|hm_main|
-                              :type (make-instance 'function-ptr :inputs (vector *opaque-ptr*
-                                                                                 (extend-type (cps:type hindley-milner/cps/trans:*exit-continuation*))))))
-
 (defmacro with-program (&body body)
   `(let* ((*var-locals* (make-hash-table :test #'eq)))
      (with-procedure (*main* (specialized-vector cps:local hindley-milner/cps/trans:*exit-continuation*) () :add nil)
