@@ -41,7 +41,7 @@
     (finally (return expr))))
 
 (defgeneric transform-type (type)
-  (:documentation "transform an IR1:TYPE into a CPS:TYPE"))
+  (:documentation "transform an `ir1:type' or `ir1:type-scheme' into a `cps:type'"))
 
 (defgeneric transform-to-expr (ir1-expr
                                &key
@@ -66,6 +66,13 @@ of intermediate terms which must be constructed around the primary
 value."))
 
 ;;; transform-type methods
+
+(defmethod transform-type ((type ir1:type-scheme))
+  (transform-type (ir1:body type)))
+
+(defmethod transform-type ((type ir1:type-variable))
+  (make-instance 'type-variable
+                 :name (ir1:name type)))
 
 (defmethod transform-type ((type ir1:type-primitive))
   (ecase (ir1:name type)
@@ -121,6 +128,60 @@ terms that must be computed prior to the call."
     (appending compute-arg into intermediate-terms)
     (finally (return (values arg-vars intermediate-terms)))))
 
+(|:| #'compatible-boxes-p (-> (repr-type repr-type) boolean))
+(defun compatible-boxes-p (lht rht)
+  (and (typep lht 'type-variable)
+       (typep rht 'type-variable)))
+
+(|:| #'box-arg (-> (variable local expr) expr))
+(defun box-arg (old new inner-expr)
+  (cl:if (compatible-boxes-p (type old) (type new))
+         (make-instance 'coerce-box
+                        :new new
+                        :old old
+                        :in inner-expr)
+         (make-instance 'box
+                        :var new
+                        :unboxed old
+                        :in inner-expr)))
+
+(|:| #'first-arg (-> (function) repr-type))
+(defun first-arg (ftype)
+  (aref (inputs ftype) 0))
+
+(|:| #'return-type (-> (function) repr-type))
+(defun return-type (ftype)
+  (first-arg (first-arg ftype)))
+
+(|:| #'unbox (-> (variable local expr) expr))
+(defun unbox (old new inner-expr)
+  (cl:if (compatible-boxes-p (type old) (type new))
+         (make-instance 'coerce-box
+                        :new new
+                        :old old
+                        :in inner-expr)
+         (make-instance 'unbox
+                        :var new
+                        :boxed old
+                        :in inner-expr)))
+
+(|:| #'trampoline (-> (local expr local repr-type repr-type) expr))
+(defun trampoline (fn-to-call apply-expr cont-var target-type source-type)
+  (cl:if (type-equal target-type source-type) apply-expr
+         (let* ((arg (make-instance 'local
+                                    :name (gensym "trampoline-arg")
+                                    :type source-type))
+                (unboxed (make-instance 'local
+                                        :name (gensym "trampoline-unboxed")
+                                        :type target-type)))
+           (make-instance 'proc
+                          :name cont-var
+                          :arglist (specialized-vector local arg)
+                          :in apply-expr
+                          :body (unbox arg unboxed (make-instance 'apply
+                                                                  :args (specialized-vector variable unboxed)
+                                                                  :func fn-to-call))))))
+
 (defmethod transform-to-expr ((expr ir1:funcall)
                               &key
                                 current-continuation
@@ -130,19 +191,40 @@ terms that must be computed prior to the call."
       (arg-vec-vars-and-terms (ir1:args expr) lexenv)
     (multiple-value-bind (func-var func-terms)
         (transform-to-var (ir1:func expr) :lexenv lexenv)
-      (let* ((full-arglist (concatenate '(vector variable)
-                                        (list current-continuation)
-                                        arg-vars))
-             (apply-expr (make-instance 'apply
-                                        :func func-var
-                                        :args full-arglist))
-             (compute-args (compute-intermediate-terms arg-terms
-                                                       apply-expr
-                                                       lexenv))
-             (compute-func (compute-intermediate-terms func-terms
-                                                       compute-args
-                                                       lexenv)))
-        compute-func))))
+      (let* ((return-type (return-type (type func-var)))
+             (desired-type (first-arg (type current-continuation)))
+             (continuation (cl:if (type-equal return-type desired-type) current-continuation
+                                  (make-instance 'local
+                                                 :name (gensym "trampoline")
+                                                 :type (make-instance 'function
+                                                                      :inputs (adjustable-vector repr-type return-type))))))
+        (iter (with boxed-args = (adjustable-vector variable continuation))
+          (with inner-expr = (make-instance 'apply
+                                            :func func-var
+                                            :args boxed-args))
+          (for arg in-vector arg-vars)
+          (for arg-ty in-vector (inputs (type func-var)) from 1)
+          (for supplied-ty = (type arg))
+          (when (type-equal supplied-ty arg-ty)
+            (vector-push-extend arg boxed-args)
+            (next-iteration))
+          (for boxed-arg = (make-instance 'local
+                                          :name (gensym "boxed-arg")
+                                          :type arg-ty))
+
+          (setf inner-expr (box-arg arg boxed-arg inner-expr))
+          (vector-push-extend boxed-arg boxed-args)
+          (finally
+           (return
+             (compute-intermediate-terms func-terms
+                                         (compute-intermediate-terms arg-terms
+                                                                     (trampoline current-continuation
+                                                                                 inner-expr
+                                                                                 continuation
+                                                                                 desired-type
+                                                                                 return-type)
+                                                                     lexenv)
+                                         lexenv))))))))
 
 
 (defmethod transform-to-expr ((expr ir1:let)
@@ -152,7 +234,7 @@ terms that must be computed prior to the call."
                               &allow-other-keys)
   (let* ((old-def (ir1:def expr))
          (var-name (ir1:name old-def))
-         (var-type (transform-type (ir1:type old-def)))
+         (var-type (transform-type (ir1:scheme old-def)))
          (var (make-instance 'local
                              :name var-name
                              :type var-type))
@@ -331,7 +413,7 @@ terms that must be computed prior to the call."
     (for def in-vector (ir1:definitions typed-ir1-program))
     (for local = (make-instance 'local
                                  :name (ir1:name def)
-                                 :type (transform-type (ir1:type def))))
+                                 :type (transform-type (ir1:scheme def))))
     (collect (cons local (ir1:initform def))
       into intermediate-terms
       at beginning)

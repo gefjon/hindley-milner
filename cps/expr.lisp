@@ -16,12 +16,15 @@
    :local :name
    :closure :name :corresponding-local
    :constant :value
-   
+
    :closure-vars
 
    :*exit-continuation*
 
    :expr
+   :box :var :unboxed :in
+   :unbox :var :boxed :in
+   :coerce-box :new :old :in
    :let :var :prim-op :args :in
    :proc :name :body :closes-over :arglist :in
    :if :predicate :then-clause :else-clause
@@ -46,7 +49,16 @@
   "the continuation to exit the program")
 
 (define-enum expr ()
-  ((let ((var variable)
+  ((box ((var local)
+         (unboxed variable)
+         (in expr)))
+   (unbox ((var local)
+           (boxed variable)
+           (in expr)))
+   (coerce-box ((new local)
+                (old variable)
+                (in expr)))
+   (let ((var variable)
          (prim-op operator)
          (args (vector variable))
          (in expr)))

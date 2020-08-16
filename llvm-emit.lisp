@@ -250,6 +250,14 @@
 (defmethod emit ((int fixnum))
   (princ int *emit-out*))
 
+(defmethod emit ((true (eql t)))
+  (declare (ignorable true))
+  (emit 1))
+
+(defmethod emit ((false (eql nil)))
+  (declare (ignorable false))
+  (emit 0))
+
 (defmethod emit ((type integer))
   (write-out #\i)
   (emit (bitwidth type)))

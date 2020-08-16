@@ -13,6 +13,8 @@
 (cl:in-package :hindley-milner/three-address/trans)
 
 (defgeneric extend-type (type)
+  (:method ((type cps:type-variable))
+    *opaque-ptr*)
   (:method ((type cps:primitive))
     (eswitch (type)
       (cps:*void* *void*)
@@ -146,6 +148,21 @@
                `((add-procedure *current-procedure*))))))))
 
 (defgeneric transform-expr (cps-expr))
+
+(defmethod transform-expr ((expr cps:box))
+  (insn 'box
+        :dst (corresponding-local (cps:var expr))
+        :src (read-from (cps:unboxed expr)))
+  (transform-expr (cps:in expr)))
+
+(defmethod transform-expr ((expr cps:unbox))
+  (insn 'unbox
+        :dst (corresponding-local (cps:var expr))
+        :src (read-from (cps:boxed expr)))
+  (transform-expr (cps:in expr)))
+
+(defmethod transform-expr ((expr cps:coerce-box))
+  (transform-expr (cps:in expr)))
 
 (defmethod transform-expr ((expr cps:let))
   (insn 'primop

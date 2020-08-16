@@ -66,6 +66,13 @@
   (shallow-copy local
                 :name (format-gensym "~a-copy" (name local))))
 
+(defmethod add-instr ((instr box))
+  (push (shallow-copy instr
+                      :live-values (coerce (hash-set-vector *live-set*)
+                                           '(vector local)))
+        *current-bb-body*)
+  (values))
+
 (defmethod add-instr
     ((instr make-closure-env))
   (push (shallow-copy instr
@@ -121,6 +128,8 @@
 (def-inputs-outputs primop (args) (dst))
 (def-inputs-outputs branch (condition))
 (def-inputs-outputs call (func args))
+(def-inputs-outputs box (src) (dst))
+(def-inputs-outputs unbox (src) (dst))
 
 (defun make-unborn (local)
   (hash-set-remove local *live-set*)

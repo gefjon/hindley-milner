@@ -28,11 +28,10 @@
    :program :definitions :entry))
 (cl:in-package :hindley-milner/ir1/expr)
 
-(define-enum definition ((name symbol)
-                         (initform expr))
-  ((untyped ())
-   (polymorphic ((scheme type-scheme)))
-   (monomorphic ((type type))))
+(define-class definition
+    ((name symbol)
+     (initform expr)
+     (scheme type-scheme :may-init-unbound t))
   :superclasses (subst-all-slots))
 
 (define-enum expr ((type type :may-init-unbound t))
@@ -57,9 +56,6 @@
    (prog2 ((side-effect expr)
            (return-value expr))))
   :superclasses (subst-all-slots))
-
-;;;; transformations from surface-syntax to ir1:
-;; - implicit progns (e.g. in let or lambda) are made explicit
 
 (define-class program
     ((definitions (vector definition))

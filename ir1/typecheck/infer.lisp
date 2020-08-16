@@ -94,21 +94,21 @@ CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to
                         arrow-type
                         constraints)))))))
 
-(|:| #'extend-type-env-for-def (-> (polymorphic type-env) type-env))
+(|:| #'extend-type-env-for-def (-> (definition type-env) type-env))
 (defun extend-type-env-for-def (def type-env)
   (acons (name def) (scheme def)
          type-env))
 
-(|:| #'infer-definition (-> (untyped type-env) (values polymorphic constraints type-env &optional)))
+(|:| #'infer-definition (-> (definition type-env) (values definition constraints type-env &optional)))
 (defun infer-definition (untyped type-env)
-  "add type information to an `UNTYPED' `DEFINITION', returning three values:
+  "add type information to an untyped `DEFINITION', returning three values:
 
-a `POLYMORPHIC' `DEFINITION', a `CONSTRAINTS' object describing the
+a new `DEFINITION', a `CONSTRAINTS' object describing the
 requirements on that definition, and a `TYPE-ENV' that extends
 TYPE-ENV with information about the new definition."
   (multiple-value-bind (new-initform type constraints)
       (infer (initform untyped) type-env)
-    (let* ((new-def (make-instance 'polymorphic
+    (let* ((new-def (make-instance 'definition
                                    :name (name untyped)
                                    :initform new-initform
                                    :scheme (generalize type type-env))))

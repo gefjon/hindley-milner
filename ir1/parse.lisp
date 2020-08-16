@@ -13,9 +13,9 @@
 (defgeneric parse (clause)
   (:documentation "transform a `SYNTAX:CLAUSE' into an `IR1:EXPR'"))
 
-(|:| #'parse-definition (-> (syntax:definition) untyped))
+(|:| #'parse-definition (-> (syntax:definition) definition))
 (defun parse-definition (definition)
-  (make-instance 'untyped
+  (make-instance 'definition
                  :name (syntax:binding definition)
                  :initform (parse (syntax:value definition))))
 

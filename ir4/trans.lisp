@@ -81,8 +81,7 @@
                              :name (3adr:name global))))
 
 (defmethod transform-to-val ((const 3adr:constant))
-  (make-instance 'const
-                 :val (3adr:value const)))
+  (const (3adr:value const)))
 
 (defmethod transform-to-type ((reg 3adr:register))
   (transform-to-type (3adr:type reg)))
@@ -98,9 +97,8 @@
     (:fixnum *i64*)))
 
 (defmethod transform-to-type ((fptr 3adr:function-ptr))
-  (make-instance 'pointer
-                 :pointee (make-instance 'function
-                                         :inputs (map '(vector repr-type) #'transform-to-type (3adr:inputs fptr)))))
+  (pointer (make-instance 'function
+                          :inputs (map '(vector repr-type) #'transform-to-type (3adr:inputs fptr)))))
 
 (defmethod transform-to-type ((closure 3adr:closure-func))
   (make-instance 'struct
@@ -113,8 +111,7 @@
                  :members (map '(vector repr-type) #'transform-to-type (3adr:elts cenv))))
 
 (defmethod transform-to-type ((gc-ptr 3adr:gc-ptr))
-  (make-instance 'pointer
-                 :pointee (transform-to-type (3adr:pointee gc-ptr))))
+  (pointer (transform-to-type (3adr:pointee gc-ptr))))
 
 (defun gen-local (fmt-string &rest args)
   (make-instance 'local :name (apply #'format-gensym fmt-string args)))
@@ -122,9 +119,11 @@
 (defmethod transform-instr ((instr 3adr:read-closure-env))
   (with-slot-accessors (3adr:dst 3adr:env 3adr:index) instr
     (let* ((type (transform-to-type 3adr:dst))
-           (ptr-ty (make-instance 'pointer :pointee type))
+           (ptr-ty (pointer type))
            (env-ty (transform-to-type 3adr:env))
-           (elementptr (gen-local "~a-elementptr-~a" (3adr:name 3adr:env) (3adr:name 3adr:dst))))
+           (elementptr (gen-local "~a-elementptr-~a"
+                                  (3adr:name 3adr:env)
+                                  (3adr:name 3adr:dst))))
       (instr 'getelementptr
              :dst elementptr
              :agg-ty (pointee env-ty)
@@ -147,8 +146,8 @@
 
 (|:| #'copy-local (-> (local) local))
 (defun copy-local (old-local)
-  (make-instance 'local
-                 :name (format-gensym "~a-copy" (name old-local))))
+  (shallow-copy old-local
+                :name (format-gensym "~a-copy" (name old-local))))
 
 (defgeneric type-saved-tmp-info (type old)
   (:method ((type repr-type) old)
@@ -193,24 +192,36 @@
          (ptr (if (= idx 0) base
                   (gen-local "save-restore-ptr"))))
     (unless (= idx 0) 
-        (instr 'getelementptr
-               :dst ptr
-               :agg-ty *opaque-ptr*
-               :ptr-ty *double-star*
-               :ptr base
-               :indices (arglist (cons *i64* idx))))
+      (instr 'getelementptr
+             :dst ptr
+             :agg-ty *opaque-ptr*
+             :ptr-ty *double-star*
+             :ptr base
+             :indices (arglist (cons *i64* idx))))
     ptr))
+
+(|:| #'opaquify (-> (val repr-type) val))
+(defun opaquify (ptr type)
+  (if (type-equal type *opaque-ptr*) ptr
+      (let* ((opaqued (gen-local "opaquify")))
+        (instr 'bitcast
+               :dst opaqued
+               :in-ty type
+               :in ptr
+               :out-ty *opaque-ptr*)
+        opaqued)))
 
 (defgeneric save (tmp-info buf)
   (:method ((list list) buf &aux (*save-restore-idx* 0))
     (mapc (rcurry #'save buf) list))
   (:method ((info gc-ptr-info) buf
-            &aux (save-el-ptr (save-restore-ptr buf)))
+            &aux (save-el-ptr (save-restore-ptr buf))
+              (opaque-ptr (opaquify (old info) (type info))))
     (instr 'store
            :ty *opaque-ptr*
            :ptr-ty *double-star*
            :ptr save-el-ptr
-           :val (old info)))
+           :val opaque-ptr))
   (:method ((info struct-info) buf)
     (iter
       (for (i . field) in-vector (ptrs info))
@@ -229,12 +240,20 @@
   (:method ((list list) buf &aux (*save-restore-idx* 0))
     (mapc (rcurry #'restore buf) list))
   (:method ((info gc-ptr-info) buf
-            &aux (restore-ptr (save-restore-ptr buf)))
+            &aux (restore-ptr (save-restore-ptr buf))
+              (opaque-dst (if (type-equal (type info) *opaque-ptr*) (new info)
+                              (gen-local "opaque-restore"))))
     (instr 'load
-           :dst (new info)
+           :dst opaque-dst
            :ty *opaque-ptr*
            :ptr-ty *double-star*
-           :ptr restore-ptr))
+           :ptr restore-ptr)
+    (unless (type-equal (type info) *opaque-ptr*)
+      (instr 'bitcast
+             :dst (new info)
+             :in-ty *opaque-ptr*
+             :in opaque-dst
+             :out-ty (type info))))
   (:method ((info struct-info) buf)
     (with-slot-accessors (new old ptrs type) info
       (iter
@@ -255,10 +274,10 @@
 
 (defgeneric move-and-recurse (tmp-info)
   (:method ((info struct-info))
-    (iter (with ptr-ty = (make-instance 'pointer :pointee (type info)))
+    (iter (with ptr-ty = (pointer (type info)))
       (for (idx . subinfo) in-vector (ptrs info))
       (for gep-indices = (arglist (cons *i32* *zero*)
-                                  (cons *i32* (make-instance 'const :val idx))))
+                                  (cons *i32* (const idx))))
       (instr 'getelementptr
              :dst (old subinfo)
              :agg-ty (type info)
@@ -268,8 +287,8 @@
       (move-and-recurse subinfo)))
   (:method ((info gc-ptr-info))
     (let* ((untyped-old (gen-local "untyped-pre-relocate"))
-           (indirect-ptr (gen-local "untyped-relocate-indirect"))
-           (ptrty (make-instance 'pointer :pointee (type info))))
+           (ptrty (pointer (type info)))
+           (indirect-ptr (gen-local "untyped-relocate-indirect")))
       (instr 'bitcast
              :dst indirect-ptr
              :in-ty ptrty
@@ -293,28 +312,35 @@
 
 (|:| #'insert-closure-element (-> (local pointer val repr-type index) void))
 (defun insert-closure-element (env-ptr env-ptr-ty elt el-ty idx)
-  (let* ((dst (gen-local "elementptr-~a" (name elt))))
+  (let* ((dst (gen-local "elementptr-~a" idx)))
     (instr 'getelementptr
            :dst dst
            :agg-ty (pointee env-ptr-ty)
            :ptr-ty env-ptr-ty
            :ptr env-ptr
            :indices (specialized-vector (cons integer val)
-                                        (cons *i32* (make-instance 'const :val 0))
-                                        (cons *i32* (make-instance 'const :val idx))))
+                                        (cons *i32* *zero*)
+                                        (cons *i32* (const idx))))
     (instr 'store
            :ty el-ty
-           :ptr-ty (make-instance 'pointer :pointee el-ty)
+           :ptr-ty (pointer el-ty)
            :ptr dst
            :val elt))
   (values))
 
-(|:| #'live-values-list (-> (3adr:make-closure-env) (proper-list saved-tmp-info)))
+(defgeneric live-values-and-inputs (instr)
+  (:method ((instr 3adr:make-closure-env))
+    (concatenate 'list
+                 (3adr:live-values instr)
+                 (3adr:elts instr)))
+  (:method ((instr 3adr:box))
+    (cons (3adr:src instr)
+          (coerce (3adr:live-values instr) 'list))))
+
+(|:| #'live-values-list (-> (3adr:instr) (proper-list saved-tmp-info)))
 (defun live-values-list (instr)
   (iter
-    (for 3adr:local in (concatenate 'list
-                                    (3adr:live-values instr)
-                                    (3adr:elts instr)))
+    (for 3adr:local in (live-values-and-inputs instr))
     (for old-local = (transform-to-val 3adr:local))
     (for type = (transform-to-type 3adr:local))
     (for info = (type-saved-tmp-info type old-local))
@@ -336,7 +362,7 @@
 (defun compute-size (type)
   (let* ((ptr (gen-local "sizeof-ptr"))
          (dst (gen-local "sizeof-int"))
-         (ptr-ty (make-instance 'pointer :pointee type)))
+         (ptr-ty (pointer type)))
     (instr 'getelementptr
            :dst ptr
            :agg-ty type
@@ -367,38 +393,39 @@
                             idx))
   (values))
 
-(|:| #'gc-recurse-func-for (-> (pointer) global))
-(defun gc-recurse-func-for (env-ptr)
-  (let* ((env-type (pointee env-ptr))
-         (fname (make-instance 'global
-                               :name (gensym "gc_recurse")))
-         (untyped-src (gen-local "old"))
-         (typed-src (gen-local "typed-old"))
-         (info (type-saved-tmp-info env-type typed-src))
-         (typed-dst (gen-local "new"))
-         (untyped-dst (new info))
-         (*current-bb* (make-instance 'basic-block
-                                      :label nil))
-         (proc (make-instance 'procedure
-                              :name fname
-                              :calling-convention :ccc
-                              :args (arglist (cons *opaque-ptr* untyped-src)
-                                             (cons *opaque-ptr* untyped-dst))
-                              :body (adjustable-vector basic-block *current-bb*))))
-    (instr 'bitcast
-          :dst typed-src
-          :in-ty *opaque-ptr*
-          :in untyped-src
-          :out-ty env-ptr)
-    (instr 'bitcast
-          :dst typed-dst
-          :in-ty *opaque-ptr*
-          :in untyped-dst
-          :out-ty env-ptr)
-    (move-and-recurse info)
-    (instr 'ret)
-    (add-proc proc)
-    fname))
+(|:| #'gc-recurse-func-for (-> (pointer) (or global nullptr)))
+(defun gc-recurse-func-for (env-ptr
+                            &aux (env-type (pointee env-ptr))
+                              (typed-src (gen-local "typed-old"))
+                              (info (type-saved-tmp-info env-type typed-src)))
+  (if (null info) *null*
+      (let* ((fname (make-instance 'global
+                                   :name (gensym "gc_recurse")))
+             (untyped-src (gen-local "old"))
+             (typed-dst (gen-local "new"))
+             (untyped-dst (new info))
+             (*current-bb* (make-instance 'basic-block
+                                          :label nil))
+             (proc (make-instance 'procedure
+                                  :name fname
+                                  :calling-convention :ccc
+                                  :args (arglist (cons *opaque-ptr* untyped-src)
+                                                 (cons *opaque-ptr* untyped-dst))
+                                  :body (adjustable-vector basic-block *current-bb*))))
+        (instr 'bitcast
+               :dst typed-src
+               :in-ty *opaque-ptr*
+               :in untyped-src
+               :out-ty env-ptr)
+        (instr 'bitcast
+               :dst typed-dst
+               :in-ty *opaque-ptr*
+               :in untyped-dst
+               :out-ty env-ptr)
+        (move-and-recurse info)
+        (instr 'ret)
+        (add-proc proc)
+        fname)))
 
 (defun allocate-and-fill-closure-env (instr)
   (with-slot-accessors (3adr:dst 3adr:elts) instr
@@ -408,7 +435,7 @@
            (env-size (compute-size (pointee env-ptr-ty)))
            (untyped-env-ptr (transform-to-val 3adr:dst))
            (typed-env-ptr (gen-local "closure-env-~a" (3adr:name 3adr:dst)))
-           (saved-ct (make-instance 'const :val (count-gc-ptrs infos))))
+           (saved-ct (const (count-gc-ptrs infos))))
       (instr 'alloca
              :dst saves-buf
              :type *opaque-ptr*
@@ -421,9 +448,7 @@
              :func *gcalloc*
              :args (arglist (cons *i64* env-size)
                             (cons *gc-recurse-func* (gc-recurse-func-for env-ptr-ty))
-                            (cons (make-instance 'pointer
-                                                 :pointee *opaque-ptr*)
-                                  saves-buf)
+                            (cons *double-star* saves-buf)
                             (cons *i64* saved-ct)))
       (restore infos saves-buf)
       (instr 'bitcast
@@ -438,6 +463,58 @@
   (setf (gethash env-ptr *reg-locals*)
         *null*))
 
+(defmethod transform-instr ((instr 3adr:box))
+  (with-slot-accessors (3adr:dst 3adr:src) instr
+    (let* ((infos (live-values-list instr))
+           (saves-buf (gen-local "saves-buf"))
+           (val-ty (transform-to-type 3adr:src))
+           (ptr-ty (pointer val-ty))
+           (size (compute-size val-ty))
+           (untyped-ptr (transform-to-val 3adr:dst))
+           (typed-ptr (gen-local "box"))
+           (saved-ct (const (count-gc-ptrs infos))))
+      (instr 'alloca
+             :dst saves-buf
+             :type *opaque-ptr*
+             :ct-type *i64*
+             :ct saved-ct)
+      (save infos saves-buf)
+      (instr 'c-call
+             :dst untyped-ptr
+             :ret *opaque-ptr*
+             :func *gcalloc*
+             :args (arglist (cons *i64* size)
+                            (cons *gc-recurse-func* (gc-recurse-func-for ptr-ty))
+                            (cons *double-star* saves-buf)
+                            (cons *i64* saved-ct)))
+      (restore infos saves-buf)
+      (instr 'bitcast
+             :dst typed-ptr
+             :in-ty *opaque-ptr*
+             :in untyped-ptr
+             :out-ty ptr-ty)
+      (instr 'store
+             :ty val-ty
+             :ptr-ty ptr-ty
+             :ptr typed-ptr
+             ;; re-transform `src' here in case it has been relocated
+             :val (transform-to-val 3adr:src)))))
+
+(defmethod transform-instr ((instr 3adr:unbox))
+  (let* ((type (transform-to-type (3adr:dst instr)))
+         (ptr-type (pointer type))
+         (typed-ptr (gen-local "box")))
+    (instr 'bitcast
+           :dst typed-ptr
+           :in-ty *opaque-ptr*
+           :in (transform-to-val (3adr:src instr))
+           :out-ty ptr-type)
+    (instr 'load
+           :dst (transform-to-val (3adr:dst instr))
+           :ty type
+           :ptr-ty ptr-type
+           :ptr typed-ptr)))
+
 (defmethod transform-instr ((instr 3adr:make-closure-env))
   (if (emptyp (3adr:elts instr))
       (make-closure-env-null (3adr:dst instr))
@@ -445,8 +522,8 @@
 
 (defmethod transform-instr ((instr 3adr:make-closure-func))
   (with-slot-accessors (3adr:dst 3adr:env 3adr:func) instr
-    (let* ((halfway (gen-local "~a-insertvalue" (3adr:name 3adr:dst)))
-           (struct-ty (transform-to-type 3adr:dst))
+    (let* ((struct-ty (transform-to-type 3adr:dst))
+           (halfway (gen-local "~a-insertvalue" (3adr:name 3adr:dst)))
            (func-ty (transform-to-type 3adr:func)))
       (instr 'insertvalue
              :dst halfway

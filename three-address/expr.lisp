@@ -26,6 +26,8 @@
    :pointer-cast :dst :src
    :branch :condition :if-true :if-false
    :call :func :args
+   :box :dst :src
+   :unbox :dst :src
    :dead :val
 
    :basic-block :label :body
@@ -78,6 +80,12 @@
             (if-false symbol)))
    (call ((func local)
           (args (vector register))))
+   (box ((dst local)
+         (src register)
+         ;; added in `liveness.lisp'
+         (live-values (vector local) :may-init-unbound t)))
+   (unbox ((dst local)
+           (src local)))
 
    ;; added in `liveness.lisp'
    (dead ((val local)))))

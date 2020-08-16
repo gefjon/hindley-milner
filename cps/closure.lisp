@@ -78,8 +78,24 @@ elements)"))
                       (collect-closure-vars (in expr)))
                 :args (enclose-arglist (args expr))))
 
-(defgeneric closurify-defn (defn)
-  (:documentation "returns a new `DEFINITION' that is like DEFN but has been converted to have explicit closure vars."))
+(defmethod collect-closure-vars ((expr box))
+  (shallow-copy expr
+                :in (with-additional-local (var expr)
+                      (collect-closure-vars (in expr)))
+                :unboxed (enclose-var (unboxed expr))))
+
+(defmethod collect-closure-vars ((expr unbox))
+  (shallow-copy expr
+                :in (with-additional-local (var expr)
+                      (collect-closure-vars (in expr)))
+                :boxed (enclose-var (boxed expr))))
+
+(defmethod collect-closure-vars ((expr coerce-box))
+  (shallow-copy expr
+                :in (with-additional-local (new expr)
+                      (collect-closure-vars (in expr)))
+                :old (enclose-var (old expr))))
+
 (|:| #'enclose-cenv (-> ((vector closure)) (vector closure)))
 (defun enclose-cenv (cenv)
   (flet ((enclose-closure-source (closure)

@@ -15,6 +15,8 @@
    :pointer :pointee
    :struct :members
 
+   :type-equal
+
    :*i1* :*i8* :*i32* :*i64*
    :*void* :*opaque-ptr* :*double-star* :*gc-recurse-func*
 
@@ -58,9 +60,22 @@
    (void ())
    (integer ((bitwidth index)))
    (function ((inputs (vector repr-type))
-              (output repr-type :initform *void*)))
+              (output repr-type :initform (make-instance 'void))))
    (pointer ((pointee repr-type)))
    (struct ((members (vector repr-type))))))
+
+(defgeneric type-equal (lht rht)
+  (:method :around (lht rht) (or (eq lht rht) (call-next-method)))
+  (:method (lht rht) (declare (ignorable lht rht)) nil)
+  (:method ((lht token) (rht token)) t)
+  (:method ((lht void) (rht void)) t)
+  (:method ((lht integer) (rht integer)) (= (bitwidth lht) (bitwidth rht)))
+  (:method ((lht pointer) (rht pointer)) (type-equal (pointee lht) (pointee rht)))
+  (:method ((lht struct) (rht struct)) (not (mismatch (members lht) (members rht) :test #'type-equal))))
+
+(|:| #'pointer (-> (repr-type) pointer))
+(defun pointer (pointee)
+  (make-instance 'pointer :pointee pointee))
 
 (defvar *i1* (make-instance 'integer :bitwidth 1))
 (defvar *i8* (make-instance 'integer :bitwidth 8))
@@ -68,8 +83,9 @@
 (defvar *i64* (make-instance 'integer :bitwidth 64))
 
 (defvar *void* (make-instance 'void))
-(defvar *opaque-ptr* (make-instance 'pointer :pointee *i8*))
-(defvar *double-star* (make-instance 'pointer :pointee *opaque-ptr*))
+
+(defvar *opaque-ptr* (pointer *i8*))
+(defvar *double-star* (pointer *opaque-ptr*))
 
 (defvar *gc-recurse-func*
   (make-instance 'pointer
@@ -87,8 +103,12 @@
    (undef ())
    (nullptr ())))
 
-(defvar *zero* (make-instance 'const :val 0))
-(defvar *one* (make-instance 'const :val 1))
+(|:| #'const (-> (t) const))
+(defun const (val)
+  (make-instance 'const :val val))
+
+(defvar *zero* (const 0))
+(defvar *one* (const 1))
 
 (defvar *gcalloc* (make-instance 'global :name '|gcalloc|))
 (defvar *collect-and-relocate* (make-instance 'global :name '|collect_and_relocate|))
