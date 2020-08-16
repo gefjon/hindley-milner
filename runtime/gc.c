@@ -5,7 +5,7 @@
 #include <errno.h> // for errno
 #include <stdlib.h> // for exit, EXIT_FAILURE
 #include <string.h> // for memcpy
-#include <stdio.h> // for fputs, stderr
+#include <stdio.h> // for fputs, stderr, perror
 
 struct nursery_header {
   gc_recurse_func recurse;
@@ -71,7 +71,7 @@ static void alloc_generation(fixnum n) {
   fixnum size = generation_size(n);
   void *buf = mmap_anon(size);
   if (buf == MAP_FAILED) {
-    fprintf(stderr, "mmap failed to allocate space for generation 0x%llx\n", n);
+    perror("alloc_generation");
     exit(errno);
   }
   generations[n].contents_start = buf;
@@ -87,7 +87,7 @@ static void large_space_init() {
                      -1,
                      0);
   if (generations == MAP_FAILED) {
-    fputs("mmap failed to allocate generations buffer\n", stderr);
+    perror("large_space_init");
     exit(errno);
   }
   for (fixnum n = 0; n < MAX_GEN; ++n) {
@@ -109,7 +109,7 @@ static void nursery_init() {
                        -1,
                        0);
   if (nursery_start == MAP_FAILED) {
-    fputs("mmap failed to allocate nursery\n", stderr);
+    perror("nursery_init");
     exit(errno);
   }
   nursery_fill_ptr = nursery_start;
@@ -154,8 +154,8 @@ static fixnum total_size_in_large_space(fixnum body_size) {
 static gc_ptr large_space_alloc(fixnum body_size, gc_recurse_func recurse) {
   gc_ptr alloc = malloc(total_size_in_large_space(body_size));
   if (!alloc) {
-    fputs("Failed to alloc in large space!\n", stderr);
-    exit(EXIT_FAILURE);
+    perror("large_space_alloc");
+    exit(errno);
   }
   struct large_space_header *header = (struct large_space_header *)alloc;
   header->recurse = recurse;
