@@ -31,7 +31,7 @@
 
 (define-special *current-procedure* procedure)
 (define-special *program* program)
-(define-special *closure-idxes* (hash-map-of cps:closure index))
+(define-special *closure-idxes* (hash-map-of symbol index))
 (define-special *var-locals* (hash-map-of cps:variable local))
 (define-special *current-bb* basic-block)
 (define-special *current-closure-env* local)
@@ -58,7 +58,7 @@
 
 (|:| #'idx-for-closure (-> (cps:closure) index))
 (defun idx-for-closure (closure)
-  (or (gethash closure *closure-idxes*)
+  (or (gethash (cps:name closure) *closure-idxes*)
       (error "~a is not in the closure env for ~a" closure (name *current-procedure*))))
 
 (defgeneric read-from (var)
@@ -89,7 +89,7 @@
                  :type type))
 
 (|:| #'make-procedure
-     (-> (symbol (optional (vector register)) &optional (optional cps:closure-vars))
+     (-> (symbol (optional (vector local)) &optional (optional cps:closure-vars))
          (values procedure basic-block local)))
 (defun make-procedure (name arglist &optional closure-env)
   "Returns as multiple values a `procedure', its entry `basic-block', and the `local' which refers to its `closure-env'."
@@ -103,13 +103,14 @@
          (args (coerce (cons opaque-closure-arg
                               (map 'list #'corresponding-local
                                    arglist))
-                       '(vector register)))
+                       '(vector local)))
          (typed-closure-reg (make-closure-arg name
                                               (make-instance 'gc-ptr
                                                              :pointee closure-env))))
-    (insn 'pointer-cast
-          :dst typed-closure-reg
-          :src opaque-closure-arg)
+    (unless (uiop:emptyp (elts closure-env))
+      (insn 'pointer-cast
+            :dst typed-closure-reg
+            :src opaque-closure-arg))
     (values (make-instance 'procedure
                            :name name
                            :args args
@@ -118,17 +119,19 @@
             *current-bb*
             typed-closure-reg)))
 
-(|:| #'add-procedure (-> (procedure) index))
+(|:| #'add-procedure (-> (procedure) global))
 (defun add-procedure (proc)
-  (vector-push-extend proc (procs *program*)))
+  (vector-push-extend proc (procs *program*))
+  (name proc))
 
-(|:| #'make-closure-idxes (-> (sequence) (hash-map-of cps:closure index)))
+
+(|:| #'make-closure-idxes (-> (sequence) (hash-map-of symbol index)))
 (defun make-closure-idxes (cenv)
   (iter
     (with table = (make-hash-table :test #'eq))
     (for closure in-sequence cenv)
     (for i upfrom 0)
-    (setf (gethash closure table) i)
+    (setf (gethash (cps:name closure) table) i)
     (finally (return table))))
 
 (defmacro with-procedure ((name arglist closure-env
@@ -146,9 +149,10 @@
 
 (defmethod transform-expr ((expr cps:let))
   (insn 'primop
-        :dst (cps:var expr)
+        :dst (corresponding-local (cps:var expr))
         :op (cps:prim-op expr)
-        :args (read-from (cps:args expr))))
+        :args (read-from (cps:args expr)))
+  (transform-expr (cps:in expr)))
 
 (|:| #'add-proc (-> (cps:proc) void))
 (defun add-proc (defn)
@@ -171,7 +175,7 @@
     (insn 'make-closure-env
           :dst env
           :elts (read-from
-                 (map '(vector cps:local) #'corresponding-local
+                 (map '(vector cps:local) #'cps:corresponding-local
                       (cps:closes-over defn))))
     (insn 'make-closure-func
           :dst reg
@@ -230,7 +234,7 @@
 
 (defmacro with-program (&body body)
   `(let* ((*var-locals* (make-hash-table :test #'eq)))
-     (with-procedure (*main* (specialized-vector cps:local hindley-milner/cps/trans:*exit-continuation*) () :add nil)
+     (with-procedure (*main* (list (corresponding-local cps:*exit-continuation*)) () :add nil)
        (let* ((*program* (make-instance 'program
                                         :procs (adjustable-vector procedure)
                                         :entry *current-procedure*)))

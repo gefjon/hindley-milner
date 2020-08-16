@@ -11,7 +11,7 @@
   (:import-from :alexandria
    :make-gensym)
   (:import-from :hindley-milner/ir1)
-  (:export :cps-transform :*exit-continuation*))
+  (:export :cps-transform))
 (cl:in-package :hindley-milner/cps/trans)
 
 (|:| #'make-continuation-arg (-> (symbol repr-type) local))
@@ -324,12 +324,6 @@ terms that must be computed prior to the call."
                    :arglist arglist
                    :body body
                    :in expr)))
-
-(defvar *exit-continuation* (make-instance 'local
-                                           :name 'exit
-                                           :type (make-instance 'function
-                                                                :inputs (specialized-vector repr-type *fixnum*)))
-  "the continuation to exit the program")
 
 (defun cps-transform (typed-ir1-program)
   (iter

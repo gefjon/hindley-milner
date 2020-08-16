@@ -23,7 +23,8 @@
    (type-primitive ((name t)))
    (arrow ((inputs (vector type))
            (output type))
-          :superclasses (subst-all-slots))))
+          :superclasses (subst-all-slots)))
+  :superclasses (subst-atom))
 
 ;; note that `SUBST' does not recurse into `TYPE-PRIMITIVE', because
 ;; `TYPE-PRIMITIVE-NAME's should not be substituted

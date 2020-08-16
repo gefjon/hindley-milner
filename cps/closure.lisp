@@ -80,6 +80,15 @@ elements)"))
 
 (defgeneric closurify-defn (defn)
   (:documentation "returns a new `DEFINITION' that is like DEFN but has been converted to have explicit closure vars."))
+(|:| #'enclose-cenv (-> ((vector closure)) (vector closure)))
+(defun enclose-cenv (cenv)
+  (flet ((enclose-closure-source (closure)
+           (let* ((source (corresponding-local closure))
+                  (enclosed (enclose-var source)))
+             (cl:if (eq enclosed source) closure
+                    (shallow-copy closure
+                                  :corresponding-local enclosed)))))
+    (map '(vector variable) #'enclose-closure-source cenv)))
 
 (defmethod collect-closure-vars ((expr proc))
   (multiple-value-bind (new-body cenv)
@@ -90,7 +99,7 @@ elements)"))
            *closure-env*)))
     (shallow-copy expr
                   :body new-body
-                  :closes-over cenv
+                  :closes-over (enclose-cenv cenv)
                   :in (with-additional-local (name expr)
                         (collect-closure-vars (in expr))))))
 
@@ -107,7 +116,9 @@ elements)"))
 
 (defun make-closures-explicit (program)
   (with-closure-env
-    (with-locals ()
+    (with-locals (list *exit-continuation*)
       (let* ((new-program (collect-closure-vars program)))
-        (assert (zerop (length *closure-env*)))
+        (assert (zerop (length *closure-env*)) ()
+                "expect no top-level closure vars but found ~a"
+                *closure-env*)
         new-program))))

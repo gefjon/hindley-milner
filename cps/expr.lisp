@@ -19,6 +19,8 @@
    
    :closure-vars
 
+   :*exit-continuation*
+
    :expr
    :let :var :prim-op :args :in
    :proc :name :body :closes-over :arglist :in
@@ -30,12 +32,18 @@
 (define-enum variable ((type repr-type))
   ((local ((name symbol)))
    (closure ((name symbol)
-             (corresponding-local local)))
+             (corresponding-local variable)))
    (constant ((value t))))
   :superclasses (subst-atom))
 
 (deftype closure-vars ()
-  '(adjustable-vector closure))
+  '(vector closure))
+
+(defvar *exit-continuation* (make-instance 'local
+                                           :name 'exit
+                                           :type (make-instance 'function
+                                                                :inputs (specialized-vector repr-type *fixnum*)))
+  "the continuation to exit the program")
 
 (define-enum expr ()
   ((let ((var variable)
