@@ -1,7 +1,7 @@
 ;;;; -*- mode:lisp; -*-
 
-(def func (lambda (x) x))
+(def id (lambda (x) x))
 (let ()
-  (func 1)
-  (func 2)
-  (func true))
+  (id 1)
+  (id true)
+  (id 0))

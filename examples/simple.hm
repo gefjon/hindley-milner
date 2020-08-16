@@ -1,7 +1,7 @@
 ;;;; -*- mode:lisp; -*-
 
 (def a 1)
-(def b 2)
+(def b 0)
 (def foo true)
 (def bar false)
 (def baz (lambda (x y) x y))

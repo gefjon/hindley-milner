@@ -6,4 +6,5 @@
 (let ()
   (func 1)
   (func 2)
-  (func true))
+  (func true)
+  0)
