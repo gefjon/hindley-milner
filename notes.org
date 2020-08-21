@@ -30,7 +30,8 @@
    CLOSED: [2020-07-14 Tue 00:44]
    do this during the cps transform, i think. basically just call ~subst~ on the ~in~
    slots of binding forms which bind to variables or constants.
-** TODO bitcast env ptrs when necessary in saves
+** DONE bitcast env ptrs when necessary in saves
+   CLOSED: [2020-08-18 Tue 05:57]
 ** DONE correct RAUW of constants placed in closure envs
    CLOSED: [2020-08-03 Mon 00:28]
 * musings of mine

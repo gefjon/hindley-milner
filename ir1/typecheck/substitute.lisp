@@ -1,7 +1,12 @@
 (uiop:define-package :hindley-milner/ir1/typecheck/substitute
   (:import-from :trivial-types
    :association-list)
-  (:mix :hindley-milner/subst :hindley-milner/ir1/type :cl :iterate)
+  (:mix
+   :hindley-milner/prologue
+   :hindley-milner/subst
+   :hindley-milner/ir1/type
+   :cl
+   :iterate)
   (:import-from :alexandria)
   (:export :substitution :apply-substitution :instantiate :generalize))
 (cl:in-package :hindley-milner/ir1/typecheck/substitute)
@@ -19,8 +24,7 @@
         (apply-substitution rest-subst new-tree))
       target))
 
-(declaim (ftype (function (type-scheme) (values type &optional))
-                instantiate))
+(|:| #'instantiate (-> (type-scheme) type))
 (defun instantiate (type-scheme)
   (flet ((make-substitution-cell (type-var)
            (cons type-var (new-type-variable type-var))))
@@ -59,8 +63,7 @@
     (declare (ignorable key))
     (unioning (free-type-variables value))))
 
-(declaim (ftype (function (type type-env) (values type-scheme &optional))
-                generalize))
+(|:| #'generalize (-> (type type-env) type-scheme))
 (defun generalize (type type-env)
   (make-instance 'type-scheme
                  :bindings (set-difference (free-type-variables type)

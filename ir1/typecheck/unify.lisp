@@ -1,5 +1,5 @@
 (uiop:define-package :hindley-milner/ir1/typecheck/unify
-  (:mix :hindley-milner/ir1/type :iterate :cl)
+  (:mix :hindley-milner/prologue :hindley-milner/ir1/type :iterate :cl)
   (:import-from :hindley-milner/ir1/typecheck/infer
    :constraints :constraint :lhs :rhs)
   (:import-from :hindley-milner/ir1/typecheck/substitute
@@ -7,8 +7,7 @@
   (:export :solve :unify))
 (cl:in-package :hindley-milner/ir1/typecheck/unify)
 
-(declaim (ftype (function (constraints) substitution)
-                solve))
+(|:| #'solve (-> (constraints) substitution))
 (defun solve (constraints)
   "returns a unifying `SUBSTITUTION' for CONSTRAINTS."
   (labels ((recursive-solve (constraints partial-subst)
@@ -21,16 +20,14 @@
                  (recursive-solve remaining-constraints partial-solution)))))
     (recursive-solve constraints '())))
 
-(declaim (ftype (function (constraint) (values substitution &optional))
-                solve-constraint))
+(|:| #'solve-constraint (-> (constraint) substitution))
 (defun solve-constraint (constraint)
   (unify (lhs constraint) (rhs constraint)))
 
 (defgeneric unify (lhs rhs)
   (:documentation "returns a unifying `SUBSTITUTION' for the constraint that LHS and RHS are the same type"))
 
-(declaim (ftype (function (type-variable type) (values substitution &optional))
-                bind))
+(|:| #'bind (-> (type-variable type) substitution))
 (defun bind (tvar type)
   (acons tvar type '()))
 

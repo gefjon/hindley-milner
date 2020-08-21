@@ -50,8 +50,7 @@
   "maps term variables to their type schemes"
   '(association-list symbol type-scheme))
 
-(declaim (ftype (function (type-env symbol) type-scheme)
-                type-env-lookup))
+(|:| #'type-env-lookup (-> (type-env symbol) type-scheme))
 (defun type-env-lookup (type-env symbol)
   (or (cdr (assoc symbol type-env))
       (error "symbol ~s unbound in type-env ~s" symbol type-env)))
