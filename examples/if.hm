@@ -5,4 +5,4 @@
               (lambda (x y) y)))
 (def first (lambda (x y)
              (if true x y)))
-(func (first 1 0) 1)
+(func (first 0 1) 2)

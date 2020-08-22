@@ -596,7 +596,8 @@
   (with-slot-accessors (3adr:func 3adr:args) instr
     (instr 'tailcall
            :func (transform-to-val 3adr:func)
-           :args (map '(vector (cons repr-type val)) #'transform-to-arg 3adr:args))))
+           :args (map '(vector (cons repr-type val)) #'transform-to-arg 3adr:args))
+    (instr 'unreachable)))
 
 (defmethod transform-instr ((instr 3adr:dead))
   (declare (ignorable instr))

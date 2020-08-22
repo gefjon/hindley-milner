@@ -1,7 +1,6 @@
 (uiop:define-package :hindley-milner/syntax/parse
   (:mix :hindley-milner/syntax/clause :iterate :cl)
   (:import-from :alexandria :with-gensyms)
-  (:import-from :gefjon-utils :specialized-vector :compiler-state)
   (:export
    :parse :parse-def))
 (cl:in-package :hindley-milner/syntax/parse)
@@ -28,7 +27,7 @@
                    :binding binding
                    :value (parse value))))
 
-(compiler-state
+(eval-when (:compile-toplevel :load-toplevel :execute)
   (defun get-hm-symbol (symbol)
     "return a symbol that is like SYMBOL, but downcased and interend in `:HM'"
     (intern (string-downcase (symbol-name symbol))

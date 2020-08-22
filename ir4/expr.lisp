@@ -46,6 +46,7 @@
    :store :ty :ptr-ty :ptr :val
    :arith :dst :op :ty :lhs :rhs
    :ret
+   :unreachable
 
    :basic-block :label :body
    :procedure :name :calling-convention :args :body
@@ -120,7 +121,7 @@
   '(member :add :sub :mul :div))
 
 (define-enum instr ()
-  ((br ((cond local)
+  ((br ((cond val)
         (if-true symbol)
         (if-false symbol)))
    (tailcall ((func val)
@@ -169,7 +170,8 @@
            (ty repr-type)
            (lhs val)
            (rhs val)))
-   (ret ())))
+   (ret ())
+   (unreachable ())))
 
 (define-class basic-block
     ((label (or null symbol))

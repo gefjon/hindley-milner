@@ -4,9 +4,8 @@
   (:use :cl)
   (:nicknames :prologue)
   (:import-from :gefjon-utils
-   :symbol-concatenate
    :define-class
-   :adjustable-vector :make-adjustable-vector :specialized-vector
+   :adjustable-vector :specialized-vector
    :shallow-copy :map-slots :reduce-slots
    :|:| :-> :void :optional)
   (:import-from :genhash
@@ -17,7 +16,6 @@
    :tuple)
   (:export
    :define-enum
-   :extend-enum
    :hash-map-of
    :ensure-get
    :define-special
@@ -32,12 +30,11 @@
    :hash-set-map
    :hash-set-count
    :hash-set-vector
-   :standard-object-equalp
    :define-primitive-types
 
    ;; reexports from gefjon-utils
    :define-class
-   :adjustable-vector :make-adjustable-vector :specialized-vector
+   :adjustable-vector :specialized-vector
    :shallow-copy :map-slots
    :|:| :-> :void :optional))
 (cl:in-package :hindley-milner/prologue)
@@ -168,17 +165,6 @@ Does no checking to see if SET already contains ELT."
                                               :fill-pointer 0)))
   (hash-set-map (rcurry #'vector-push vec) set)
   vec)
-
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defgeneric standard-object-equalp (lhs rhs)
-    (:method (lhs rhs)
-      (equalp lhs rhs))
-    (:method ((lhs standard-object) (rhs standard-object))
-      (and (eq (class-of lhs) (class-of rhs))
-           (reduce-slots #'(lambda (so-far lhs-val rhs-val)
-                             (and so-far (standard-object-equalp lhs-val rhs-val)))
-                         t
-                         lhs rhs)))))
 
 (defmacro define-primitive-types (prim-class &body names)
   (flet ((defprim (name)

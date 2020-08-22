@@ -92,18 +92,22 @@
   (emit (cond instr))
   (comma)
   (write-out "label ")
-  (write-out (if-true instr))
+  (emit (make-instance 'local :name (if-true instr)))
   (comma)
   (write-out "label ")
-  (write-out (if-false instr))
-  (newline))
+  (emit (make-instance 'local :name (if-false instr))))
 
 (defmethod emit ((instr tailcall))
   (write-out "tail call \"tailcc\" void ")
   (emit (func instr))
   (emit-arglist (args instr))
-  (write-out " noreturn")
-  (newline))
+  (write-out " noreturn"))
+
+(defmethod emit ((instr unreachable))
+  (write-out "unreachable"))
+
+(defmethod emit ((instr ret))
+  (write-out "ret void"))
 
 (defvar *zero* (make-instance 'const :val 0))
 
@@ -127,8 +131,7 @@
   (comma)
   (emit (ct-type instr))
   (space)
-  (emit (ct instr))
-  (newline))
+  (emit (ct instr)))
 
 (defmethod emit ((instr c-call))
   (emit (dst instr))
@@ -137,8 +140,7 @@
   (space)
   (emit (func instr))
   (space)
-  (emit-arglist (args instr))
-  (newline))
+  (emit-arglist (args instr)))
 
 (defmethod emit ((instr bitcast))
   (emit (dst instr))
@@ -147,8 +149,7 @@
   (space)
   (emit (in instr))
   (write-out " to ")
-  (emit (out-ty instr))
-  (newline))
+  (emit (out-ty instr)))
 
 (defmethod emit ((instr ptrtoint))
   (emit (dst instr))
@@ -157,8 +158,7 @@
   (space)
   (emit (in instr))
   (write-out " to ")
-  (emit (out-ty instr))
-  (newline))
+  (emit (out-ty instr)))
 
 (defmethod emit ((instr extractvalue))
   (emit (dst instr))
@@ -169,8 +169,7 @@
   (iter
     (for index in-vector (indices instr))
     (comma)
-    (emit index))
-  (newline))
+    (emit index)))
 
 (defmethod emit ((instr insertvalue))
   (emit (dst instr))
@@ -185,8 +184,7 @@
   (iter
     (for index in-vector (indices instr))
     (comma)
-    (emit index))
-  (newline))
+    (emit index)))
 
 (defmethod emit ((instr getelementptr))
   (emit (dst instr))
@@ -201,8 +199,7 @@
     (comma)
     (emit type)
     (space)
-    (emit index))
-  (newline))
+    (emit index)))
 
 (defmethod emit ((instr load))
   (emit (dst instr))
@@ -211,8 +208,7 @@
   (comma)
   (emit (ptr-ty instr))
   (space)
-  (emit (ptr instr))
-  (newline))
+  (emit (ptr instr)))
 
 (defmethod emit ((instr store))
   (write-out "store ")
@@ -222,8 +218,7 @@
   (comma)
   (emit (ptr-ty instr))
   (space)
-  (emit (ptr instr))
-  (newline))
+  (emit (ptr instr)))
 
 (defmethod emit ((instr arith))
   (emit (dst instr))
@@ -234,12 +229,7 @@
   (space)
   (emit (lhs instr))
   (comma)
-  (emit (rhs instr))
-  (newline))
-
-(defmethod emit ((instr ret))
-  (write-out "ret void")
-  (newline))
+  (emit (rhs instr)))
 
 (defmethod emit ((type token))
   (write-out "token"))
@@ -296,3 +286,7 @@
 (defmethod emit :before ((instr instr))
   (declare (ignorable instr))
   (indent))
+
+(defmethod emit :after ((instr instr))
+  (declare (ignorable instr))
+  (newline))

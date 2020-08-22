@@ -33,7 +33,7 @@
   (cl:let ((*readtable* (find-readtable 'hindley-milner))
            (*package* (find-package :hm)))
     (iter
-      (with definitions = (make-adjustable-vector :element-type definition))
+      (with definitions = (adjustable-vector definition))
       (with entry)
       (for form in-file file)
       (when entry
