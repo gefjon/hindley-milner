@@ -1,7 +1,5 @@
 (uiop:define-package :hindley-milner/subst
   (:mix :hindley-milner/prologue :iterate :cl)
-  (:import-from :gefjon-utils
-   :map-slots)
   (:nicknames :subst)
   (:shadow :subst)
   (:export :subst :subst-all-slots :subst-atom :subst-recurse))

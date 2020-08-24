@@ -7,8 +7,6 @@
    :operator)
   (:import-from :hindley-milner/subst
    :subst-all-slots :subst-atom)
-  (:import-from :alexandria
-   :symbolicate)
   (:shadow
    :variable :let :if :apply)
   (:export

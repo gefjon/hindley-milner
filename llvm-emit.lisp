@@ -98,7 +98,7 @@
   (emit (make-instance 'local :name (if-false instr))))
 
 (defmethod emit ((instr tailcall))
-  (write-out "tail call \"tailcc\" void ")
+  (write-out "musttail call \"tailcc\" void ")
   (emit (func instr))
   (emit-arglist (args instr))
   (write-out " noreturn"))

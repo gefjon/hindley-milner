@@ -1,6 +1,5 @@
 (uiop:define-package :hindley-milner/three-address/type
   (:mix :hindley-milner/prologue :cl)
-  (:import-from :alexandria :symbolicate)
   (:export
    :primitive-type
    :*void* :*boolean* :*fixnum* :*opaque-ptr* :*byte*

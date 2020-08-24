@@ -7,7 +7,6 @@
    :hindley-milner/ir1/type
    :cl
    :iterate)
-  (:import-from :alexandria)
   (:export :substitution :apply-substitution :instantiate :generalize))
 (cl:in-package :hindley-milner/ir1/typecheck/substitute)
 

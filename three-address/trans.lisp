@@ -7,7 +7,7 @@
    :cl)
   (:import-from :hindley-milner/cps)
   (:import-from :alexandria
-   :with-gensyms :make-gensym :compose :when-let :eswitch)
+   :eswitch)
   (:export
    :three-address-transform-program))
 (cl:in-package :hindley-milner/three-address/trans)
@@ -91,7 +91,7 @@
                  :type type))
 
 (|:| #'make-procedure
-     (-> (symbol (optional (vector local)) &optional (optional cps:closure-vars))
+     (-> (symbol (or null (vector local)) &optional (or null cps:closure-vars))
          (values procedure basic-block local)))
 (defun make-procedure (name arglist &optional closure-env)
   "Returns as multiple values a `procedure', its entry `basic-block', and the `local' which refers to its `closure-env'."

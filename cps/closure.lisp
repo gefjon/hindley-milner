@@ -5,8 +5,6 @@
    :hindley-milner/prologue
    :iterate
    :cl)
-  (:import-from :alexandria
-   :make-gensym)
   (:import-from :trivial-types
    :proper-list)
   (:export :make-closures-explicit))

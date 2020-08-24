@@ -5,8 +5,7 @@
    :hindley-milner/three-address/expr
    :iterate
    :cl)
-  (:import-from :alexandria
-   :curry :rcurry :compose)
+  (:import-from :trivial-types :proper-list)
   (:export :liveness-annotate))
 (in-package :hindley-milner/three-address/liveness)
 
@@ -39,8 +38,8 @@
                                      (reverse (body procedure))))
                 :args (args procedure)))
 
-(define-special *live-set* (adjustable-vector instr))
-(define-special *current-bb-body* list)
+(define-special *live-set* (hash-set local))
+(define-special *current-bb-body* (proper-list instr))
 
 (defun make-live (local)
   (hash-set-insert local *live-set*))

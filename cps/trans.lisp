@@ -8,8 +8,6 @@
    :cl)
   (:import-from :trivial-types
    :proper-list :association-list)
-  (:import-from :alexandria
-   :make-gensym)
   (:import-from :hindley-milner/ir1)
   (:export :cps-transform))
 (cl:in-package :hindley-milner/cps/trans)

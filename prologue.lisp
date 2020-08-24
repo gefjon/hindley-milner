@@ -2,79 +2,63 @@
 
 (uiop:define-package :hindley-milner/prologue
   (:use :cl)
+  (:mix-reexport
+   :hindley-milner/prologue/typedec
+   :hindley-milner/prologue/hash-set
+   :hindley-milner/prologue/clos)
   (:nicknames :prologue)
-  (:import-from :gefjon-utils
-   :define-class
-   :adjustable-vector :specialized-vector
-   :shallow-copy :map-slots :reduce-slots
-   :|:| :-> :void :optional)
   (:import-from :genhash
    :hashref)
   (:import-from :alexandria
-   :remove-from-plist :rcurry :symbolicate)
+   :with-gensyms :curry :rcurry :compose :symbolicate :make-gensym)
   (:import-from :trivial-types
    :tuple)
   (:export
-   :define-enum
+   :adjustable-vector
+   :specialized-vector
    :hash-map-of
    :ensure-get
    :define-special
    :ensure-find
    :format-gensym
-   :with-slot-accessors
-   :hash-set
-   :make-hash-set
-   :hash-set-contains-p
-   :hash-set-insert
-   :hash-set-remove
-   :hash-set-map
-   :hash-set-count
-   :hash-set-vector
    :define-primitive-types
 
-   ;; reexports from gefjon-utils
-   :define-class
-   :adjustable-vector :specialized-vector
-   :shallow-copy :map-slots
-   :|:| :-> :void :optional))
+   ;; alexandria reexports
+   :curry :rcurry :with-gensyms :compose :make-gensym :symbolicate))
 (cl:in-package :hindley-milner/prologue)
 
-(defmacro define-enum (type-name common-slots variants &rest define-class-options)
-  "define an enum or sum type named TYPE-NAME with COMMON-SLOTS.
+(defun vector-adjustable-p (vector)
+  (and (vectorp vector)
+       (adjustable-array-p vector)
+       (array-has-fill-pointer-p vector)))
 
-this compiles into a superclass TYPE-NAME and a subtype for each of
-the VARIANTS. it's likely incorrect to do (`MAKE-INSTANCE'
-'TYPE-NAME), since TYPE-NAME is intended to be an abstract
-superclass.
+(deftype adjustable-vector (&optional element-type)
+  `(and (vector ,element-type) (satisfies vector-adjustable-p)))
 
-VARIANTS should be a list of variant-descriptors, each of which is a
-list of the form (VARIANT-NAME UNIQUE-SLOTS).
+(defmacro adjustable-vector (type &rest initial-contents)
+  `(make-adjustable-vector :element-type ,type
+                           :initial-contents (list ,@initial-contents)))
 
-UNIQUE-SLOTS is a list of slot-descriptors, each of which is a list of
-the form (SLOT-NAME SLOT-TYPE `&KEY' INITFORM MAY-INIT-UNBOUND
-ACCESSOR). the `&KEY' args all have sensible defaults."
-  `(progn (define-class ,type-name ,common-slots ,@define-class-options)
-          (extend-enum ,type-name ,variants)))
+(defmacro make-adjustable-vector (&key (element-type t) initial-contents)
+  (with-gensyms (length contents)
+    `(let* ((,contents ,initial-contents)
+            (,length (length ,contents)))
+       (make-array ,length
+                   :element-type ',element-type
+                   :initial-contents ,contents
+                   :fill-pointer ,length
+                   :adjustable t))))
 
-(defmacro extend-enum (enum-name variants)
-  "add additional VARIANTS to an already-defined enum ENUM-NAME.
-
-this just defines subclasses of ENUM-NAME."
-  (flet ((define-variant (variant)
-           (destructuring-bind (variant-name unique-slots
-                                &rest options &key superclasses &allow-other-keys)
-               variant
-             `(define-class ,variant-name
-                ,unique-slots
-                ;; put declared superclasses before the enum class, to
-                ;; allow mixins on variants which supersede methods
-                ;; from the enum class.
-                :superclasses (,@superclasses ,enum-name)
-                ,@(remove-from-plist options :superclasses)))))
-    `(progn
-       ,@(mapcar #'define-variant variants))))
+(defmacro specialized-vector (type &rest contents)
+  `(let ((contents (list ,@contents)))
+     (make-array (length contents)
+                 :element-type ',type
+                 :initial-contents contents)))
 
 (deftype hash-map-of (&optional key value)
+  ;; Note that this doesn't expand to `cl:hash-table', as it wants to
+  ;; support `genhash'. That package doesn't export a type-name for
+  ;; its hash tables.
   (declare (ignore key value))
   't)
 
@@ -106,65 +90,6 @@ for example: (define-special *foo* fixnum)"
 (|:| #'format-gensym (-> (string &rest t) symbol))
 (defun format-gensym (fmt &rest args)
   (gensym (apply #'format nil fmt args)))
-
-(defmacro with-slot-accessors (accessors instance &body body)
-  "Like `with-accessors', but allows the shorthand from `with-slots' which binds the name of the accessor as the local."
-  (flet ((canonicalize (accessor)
-           (etypecase accessor
-             ((cons symbol (cons symbol null)) accessor)
-             (symbol `(,accessor ,accessor)))))
-    `(with-accessors ,(mapcar #'canonicalize accessors) ,instance ,@body)))
-
-(deftype hash-set (&optional eltype)
-  `(hash-map-of ,eltype ,eltype))
-
-(defun make-hash-set (&key (test #'eq))
-  (make-hash-table :test test))
-
-(|:| #'hash-set-contains-p (-> (t hash-set) (values t boolean)))
-(defun hash-set-contains-p (elt set)
-  "Test is SET contains ELT.
-
-If present, return the version in the set as a primary value and `t' as a secondary value.
-If not present, return `nil' as both primary and secondary values."
-  (multiple-value-bind (entry foundp) (gethash elt set)
-    (values
-     (when foundp
-       (assert (funcall (hash-table-test set) elt entry))
-       entry)
-     foundp)))
-
-(|:| #'hash-set-insert (-> (t hash-set) void))
-(defun hash-set-insert (elt set)
-  "Insert ELT into SET.
-
-Does no checking to see if SET already contains ELT."
-  (setf (gethash elt set) elt))
-
-(|:| #'hash-set-remove (-> (t hash-set) boolean))
-(defun hash-set-remove (elt set)
-  "Remove ELT from SET, returning `t' if it was present or `nil' if it was not."
-  (remhash elt set))
-
-(|:| #'hash-set-map (-> ((-> (t) void) hash-set) void))
-(defun hash-set-map (func set)
-  (flet ((maphash-func (key val)
-           (assert (funcall (hash-table-test set) key val))
-           (funcall func key)))
-    (maphash #'maphash-func set))
-  (values))
-
-(|:| #'hash-set-count (-> (hash-set) unsigned-byte))
-(defun hash-set-count (set)
-  (hash-table-count set))
-
-(|:| #'hash-set-vector (-> (hash-set) vector))
-(defun hash-set-vector (set
-                        &aux (vec (make-array (hash-set-count set)
-                                              :adjustable t
-                                              :fill-pointer 0)))
-  (hash-set-map (rcurry #'vector-push vec) set)
-  vec)
 
 (defmacro define-primitive-types (prim-class &body names)
   (flet ((defprim (name)

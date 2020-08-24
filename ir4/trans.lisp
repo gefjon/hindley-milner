@@ -5,8 +5,6 @@
    :cl
    :iterate)
   (:import-from :trivial-types :proper-list)
-  (:import-from :alexandria
-   :rcurry)
   (:import-from :uiop
    :emptyp)
   (:import-from :hindley-milner/three-address)

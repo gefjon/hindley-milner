@@ -1,6 +1,9 @@
 (uiop:define-package :hindley-milner/syntax/parse
-  (:mix :hindley-milner/syntax/clause :iterate :cl)
-  (:import-from :alexandria :with-gensyms)
+  (:mix
+   :hindley-milner/prologue
+   :hindley-milner/syntax/clause
+   :iterate
+   :cl)
   (:export
    :parse :parse-def))
 (cl:in-package :hindley-milner/syntax/parse)

@@ -6,7 +6,6 @@
    :hindley-milner/prologue
    :named-readtables
    :cl)
-  (:import-from :alexandria :with-gensyms)
   (:import-from :hindley-milner/syntax/package)
   (:import-from :hindley-milner/primop
    :operator)
