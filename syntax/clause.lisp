@@ -64,7 +64,7 @@
    (exactly ((value literal)))
    (ign ())
    (destruct ((name symbol)
-              (elts (vector (cons symbol pattern)))))))
+              (elts (vector pattern))))))
 
 (define-enum clause ()
   ((match ((val symbol)

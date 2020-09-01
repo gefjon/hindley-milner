@@ -1,6 +1,6 @@
 ;;;; -*- mode:lisp; -*-
 
-(def id (lambda (x) x))
+(fn id (x) x)
 (let ()
   (id 1)
   (id true)

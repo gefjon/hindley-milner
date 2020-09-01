@@ -1,9 +1,7 @@
 ;;;; -*- mode: lisp; -*-
 
-(const func (lambda  (x)
-              (let ((y x)) y)))
+(fn func (x)
+    (let ((y x)) y))
 (let ()
-  (func 1)
-  (func 2)
   (func true)
-  1)
+  (func 0))

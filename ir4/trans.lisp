@@ -29,7 +29,7 @@
   (cons (transform-to-type obj)
         (transform-to-val obj)))
 
-(|:| #'transform-and-add-proc (-> (procedure) void))
+(|:| #'transform-and-add-proc (-> (3adr:procedure) void))
 (defun transform-and-add-proc (proc)
   (add-proc (ir4-transform proc)))
 
@@ -306,7 +306,7 @@
              :ptr indirect-ptr
              :val (new info)))))
 
-(|:| #'insert-closure-element (-> (local pointer val repr-type index) void))
+(|:| #'insert-closure-element (-> (val pointer val repr-type index) void))
 (defun insert-closure-element (env-ptr env-ptr-ty elt el-ty idx)
   (let* ((dst (gen-local "elementptr-~a" idx)))
     (instr 'getelementptr
@@ -375,7 +375,7 @@
   (make-array (length conses) :element-type '(cons repr-type val)
                               :initial-contents conses))
 
-(|:| #'fill-env (-> (local pointer (vector 3adr:local)) void))
+(|:| #'fill-env (-> (local pointer (vector 3adr:register)) void))
 (defun fill-env (env-ptr env-ptr-ty elts)
   (iter
     (for idx from 0)
@@ -426,8 +426,8 @@
            (saves-buf (gen-local "saves-buf"))
            (env-ptr-ty (transform-to-type 3adr:dst))
            (env-size (compute-size (pointee env-ptr-ty)))
-           (untyped-env-ptr (transform-to-val 3adr:dst))
-           (typed-env-ptr (gen-local "closure-env-~a" (3adr:name 3adr:dst)))
+           (untyped-env-ptr (gen-local "closure-env-~a" (3adr:name 3adr:dst)))
+           (typed-env-ptr (transform-to-val 3adr:dst))
            (saved-ct (const (count-gc-ptrs infos))))
       (instr 'alloca
              :dst saves-buf
@@ -454,7 +454,8 @@
 (|:| #'make-closure-env-null (-> (3adr:local) void))
 (defun make-closure-env-null (env-ptr)
   (setf (gethash env-ptr *reg-locals*)
-        *null*))
+        *null*)
+  (values))
 
 (defmethod transform-instr ((instr 3adr:make-struct))
   (if (emptyp (3adr:elts instr))

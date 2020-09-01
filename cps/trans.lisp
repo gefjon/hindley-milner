@@ -135,7 +135,7 @@ terms that must be computed prior to the call."
                                              :type (struct (type old)))))
          (transmute (make-instance 'transmute
                                    :new new
-                                   :old old
+                                   :old trans-in-var
                                    :in inner-expr)))
     (cl:if boxed-p transmute
            (make-instance 'alloc-struct
@@ -157,7 +157,7 @@ terms that must be computed prior to the call."
          (trans-out-var (cl:if boxed-p new
                                (make-instance 'local
                                               :name (gensym "unopaquify")
-                                              :type (struct (type old)))))
+                                              :type (struct (type new)))))
          (load (cl:if boxed-p inner-expr
                       (make-instance 'read-struct
                                      :var new

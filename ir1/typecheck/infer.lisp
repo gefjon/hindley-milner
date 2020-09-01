@@ -235,8 +235,22 @@ TYPE-ENV with information about the new definition."
               (cons (eqv ctor-ty agg-ty)
                     agg-constraints)))))
 
+(defmethod infer ((expr and) type-env)
+  (multiple-value-bind (lhs-expr lhs-ty lhs-constraints)
+      (infer (lhs expr) type-env)
+    (multiple-value-bind (rhs-expr rhs-ty rhs-constraints)
+        (infer (rhs expr) type-env)
+      (values (shallow-copy expr
+                            :type lhs-ty
+                            :lhs lhs-expr
+                            :rhs rhs-expr)
+              lhs-ty
+              (append (list (eqv lhs-ty rhs-ty))
+                      lhs-constraints
+                      rhs-constraints)))))
+
 (|:| #'infer-program (-> (program) (values program constraints &optional)))
-(defmethod infer-program (program)
+(defun infer-program (program &aux (*ctor-schemes* (ctor-schemes-map (types program))))
   (iter
     (with type-env = ())
     (for def in-vector (definitions program))

@@ -4,7 +4,7 @@
    :hindley-milner/primop
    :hindley-milner/prologue
    :cl)
-  (:shadow :type)
+  (:shadow :type :condition)
   (:export
    :register :type
    :local :name
@@ -83,13 +83,13 @@
    (dead ((val local)))))
 
 (define-class basic-block
-    ((label (optional symbol))
+    ((label (or null symbol))
      (body (vector instr))))
 
 (define-class procedure
     ((name global)
      (args (vector local))
-     (closure-env closure-env)
+     (closure-env struct)
      (body (vector basic-block))))
 
 (define-class program
@@ -97,6 +97,6 @@
      (entry procedure)))
 
 (defparameter *main* (make-instance 'global
-                              :name '|hm_main|
-                              :type (make-instance 'function-ptr :inputs (vector *opaque-ptr*
+                                    :name '|hm_main|
+                                    :type (make-instance 'function-ptr :inputs (vector *opaque-ptr*
                                                                                  (make-instance 'function-ptr :inputs (vector *opaque-ptr* *fixnum*))))))

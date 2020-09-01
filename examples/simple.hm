@@ -1,8 +1,8 @@
 ;;;; -*- mode:lisp; -*-
 
-(def a 1)
-(def b 0)
-(def foo true)
-(def bar false)
-(def baz (lambda (x y) x y))
+(const a 1)
+(const b 0)
+(const foo true)
+(const bar false)
+(fn baz (x y) x y)
 (baz a b)

@@ -104,12 +104,12 @@
                  :type type))
 
 (|:| #'make-procedure
-     (-> (symbol (or null (vector local)) &optional (or null cps:closure-vars))
+     (-> (global (or null (vector local)) &optional (or null cps:closure-vars))
          (values procedure basic-block local)))
 (defun make-procedure (name arglist &optional closure-env)
   "Returns as multiple values a `procedure', its entry `basic-block', and the `local' which refers to its `closure-env'."
   (let* ((closure-env (make-instance 'struct
-                                     :elts (map '(vector type) (compose #'extend-type #'cps:type)
+                                     :elts (map '(vector repr-type) (compose #'extend-type #'cps:type)
                                                 closure-env)))
          (*current-bb* (make-instance 'basic-block
                                       :label nil
@@ -201,20 +201,26 @@
                   :elts (map '(vector repr-type)
                              (compose #'extend-type #'cps:type)
                              (cps:closes-over defn))))
-         (env (make-instance 'local
-                             :name (format-gensym "~a-env" (name reg))
-                             :type env-ty)))
+         (typed-env (make-instance 'local
+                                   :name (format-gensym "~a-env" (name reg))
+                                   :type env-ty))
+         (untyped-env (make-instance 'local
+                                     :name (format-gensym "~a-env" (name reg))
+                                     :type *opaque-ptr*)))
     (with-procedure
         (fname (cps:arglist defn) (cps:closes-over defn))
       (transform-expr (cps:body defn)))
     (insn 'make-struct
-          :dst env
+          :dst typed-env
           :elts (read-from
                  (map '(vector cps:local) #'cps:corresponding-local
                       (cps:closes-over defn))))
+    (insn 'pointer-cast
+          :dst untyped-env
+          :src typed-env)
     (insn 'make-closure-func
           :dst reg
-          :env env
+          :env untyped-env
           :func fname)))
 
 (defmethod transform-expr ((expr cps:proc))
@@ -269,7 +275,7 @@
 
 (defmacro with-program (&body body)
   `(let* ((*var-locals* (make-hash-table :test #'eq)))
-     (with-procedure (*main* (list (corresponding-local cps:*exit-continuation*)) () :add nil)
+     (with-procedure (*main* (specialized-vector local (corresponding-local cps:*exit-continuation*)) () :add nil)
        (let* ((*program* (make-instance 'program
                                         :procs (adjustable-vector procedure)
                                         :entry *current-procedure*)))

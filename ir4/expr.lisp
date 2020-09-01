@@ -3,7 +3,7 @@
    :hindley-milner/prologue
    :cl)
   (:shadow
-   :integer :function :cond :type)
+   :integer :function :cond :type :load)
   (:export
    :index
 

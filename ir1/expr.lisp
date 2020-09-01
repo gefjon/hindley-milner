@@ -9,8 +9,8 @@
   (:import-from :hindley-milner/primop
    :operator)
   (:import-from :trivial-types
-   :association-list)
-  (:shadow :variable :quote :funcall :lambda :let :if :prog2)
+   :proper-list :association-list)
+  (:shadow :variable :quote :funcall :lambda :let :if :prog2 :and)
   (:export
 
    :type
@@ -46,10 +46,11 @@
    :assert-variant :src :constructor
    :match-exhausted
    :field-value :idx :aggregate :constructor
+   :and :lhs :rhs
 
    :*true* :*false*
    
-   :program :definitions :entry))
+   :program :types :definitions :entry))
 (cl:in-package :hindley-milner/ir1/expr)
 
 (define-enum type ()
@@ -126,9 +127,11 @@
    (assert-variant ((src expr)
                     (constructor symbol)))
    (match-exhausted ())
-   (field-value ((idx (and unsigned-byte fixnum))
+   (field-value ((idx (cl:and unsigned-byte fixnum))
                  (constructor symbol)
-                 (aggregate expr))))
+                 (aggregate expr)))
+   (and ((lhs expr)
+         (rhs expr))))
   :superclasses (subst-all-slots))
 
 (defvar *true* (make-instance 'quote :it t))

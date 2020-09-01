@@ -4,6 +4,7 @@
    :hindley-milner/ir4
    :cl
    :iterate)
+  (:shadow :space)
   (:import-from :alexandria
    :string-designator)
   (:export :emit-to-file))
@@ -40,9 +41,12 @@
                                        :if-exists :supersede)
     (emit-program program)))
 
+(eval-when (:compile-toplevel :load-toplevel)
+  (defvar *header* (merge-pathnames "header.llvm"
+                                    *compile-file-pathname*)))
+
 (defun emit-program (program)
-  (write-out (uiop:read-file-string (merge-pathnames "header.llvm"
-                                                     *load-pathname*)))
+  (write-out (uiop:read-file-string *header*))
   (map nil #'emit-proc (procs program))
   (emit-proc (entry program) :linkage "external"))
 

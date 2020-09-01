@@ -37,7 +37,8 @@ If not present, return `nil' as both primary and secondary values."
   "Insert ELT into SET.
 
 Does no checking to see if SET already contains ELT."
-  (setf (gethash elt set) elt))
+  (setf (gethash elt set) elt)
+  (values))
 
 (|:| #'hash-set-remove (-> (t hash-set) boolean))
 (defun hash-set-remove (elt set)

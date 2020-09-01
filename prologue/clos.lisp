@@ -21,7 +21,7 @@
   (type (err-uninit type))
   (may-init-unbound nil :type boolean)
   (initform (err-uninit initform))
-  (initarg (err-uninit initarg) :type (optional keyword))
+  (initarg (err-uninit initarg) :type (or null keyword))
   (accessor (err-uninit accessor) :type symbol)
   (read-only nil :type boolean))
 

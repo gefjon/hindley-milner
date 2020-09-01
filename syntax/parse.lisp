@@ -55,7 +55,9 @@
 
 (define-top-level-form (hm:|enum| name &rest variants)
   (flet ((parse-variant (variant)
-           (apply #'parse-top-level-form 'hm:|struct| variant)))
+           (apply #'parse-top-level-form 'hm:|struct| (etypecase variant
+                                                        (list variant)
+                                                        (symbol (list variant))))))
     (multiple-value-bind (name params) (type-name-and-params name)
       (make-instance 'enum
                      :name name
@@ -152,24 +154,16 @@ e.g. (define-parser funcall (function &rest args)
 
 (define-parser match (value &rest arms)
   (make-instance 'match
-                 :val value
+                 :val (parse value)
                  :arms (map '(vector (cons pattern clause)) #'parse-match-arm
                             arms)))
-
-(defgeneric parse-struct-field-pat (pattern)
-  (:method ((pattern cons))
-    (destructuring-bind ((field-name subpat)) pattern
-      (check-type field-name symbol)
-      (cons field-name (parse-pattern subpat))))
-  (:method ((pattern symbol))
-    (cons pattern (make-instance 'bind :name pattern))))
 
 (defmethod parse-pattern ((destruct cons))
   (destructuring-bind (discrim &rest pats) destruct
     (make-instance 'destruct
                    :name discrim
-                   :elts (map '(vector (cons symbol pattern))
-                              #'parse-struct-field-pat
+                   :elts (map '(vector pattern)
+                              #'parse-pattern
                               pats))))
 
 (defmethod parse-pattern ((_ (eql 'hm:_)))

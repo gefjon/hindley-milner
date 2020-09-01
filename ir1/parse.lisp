@@ -59,7 +59,7 @@
 
 (defmethod parse-definition ((def syntax:struct))
   (let* ((*type-variables* (make-hash-table :test #'eq))
-         (bindings (map '(vector type-variable) #'add-type-var
+         (bindings (map 'list #'add-type-var
                         (syntax:type-params def))))
     (add-type (make-instance 'type-scheme
                              :bindings bindings
@@ -67,7 +67,7 @@
 
 (defmethod parse-definition ((def syntax:enum))
   (let* ((*type-variables* (make-hash-table :test #'eq))
-         (bindings (map '(vector type-variable) #'add-type-var
+         (bindings (map 'list #'add-type-var
                         (syntax:type-params def)))
          (variants (map '(vector struct) #'parse-struct-def
                         (syntax:variants def)))
@@ -122,13 +122,19 @@
   (declare (ignorable ign discrim-var))
   (values *true* nil))
 
+(defun andify (lhs rhs)
+  (make-instance 'and :lhs lhs :rhs rhs))
+
+(defun condition-union (&rest conditions)
+  (reduce #'andify conditions))
+
 (defmethod parse-pattern ((destruct syntax:destruct) discrim-var)
   (iter
     (with ctor = (syntax:name destruct))
     (with discrim-p = (make-instance 'discriminant-p
                                      :variant ctor
                                      :value discrim-var))
-    (with transmute-sym = (gensym 'transmute))
+    (with transmute-sym = (make-gensym 'transmute))
     (with transmute-var = (make-instance 'variable :name transmute-sym))
     (with transmute-expr = (make-instance 'assert-variant
                                           :src discrim-var
@@ -136,33 +142,35 @@
     (with transmute-def = (make-instance 'definition
                                          :name transmute-sym
                                          :initform transmute-expr))
-    (for (field . subpat) in-vector (syntax:elts destruct))
-    (for sym = (make-gensym field))
+    (for subpat in-vector (syntax:elts destruct))
+    (for field-idx upfrom 0)
+    (for sym = (format-gensym "field-~a-" field-idx))
     (for var = (make-instance 'variable :name sym))
     (for def = (make-instance 'definition
                               :name sym
                               :initform (make-instance 'field-value
-                                                       :field-name field
+                                                       :idx field-idx
+                                                       :constructor ctor
                                                        :aggregate transmute-var)))
-    (for (subpred . subbinds) = (parse-pattern subpat var))
+    (for (values subpred subbinds) = (parse-pattern subpat var))
     (collect (make-instance 'let
                             :def def
                             :body subpred)
       into predicates)
     (collect def into binds)
     (appending subbinds into binds)
-    (finally (return (values (cons discrim-p predicates)
+    (finally (return (values (andify discrim-p
+                                     (make-instance 'let :def transmute-def :body
+                                                    (apply #'condition-union predicates)))
                              (cons transmute-def binds))))))
 
 (|:| #'enclose-in-lets (-> ((proper-list (cons symbol expr)) expr) expr))
 (defun enclose-in-lets (binds inner)
   (iter
     (with expr = inner)
-    (for (var . initform) in (nreverse binds))
+    (for def in (nreverse binds))
     (setf expr (make-instance 'let
-                              :def (make-instance 'definition
-                                                  :name var
-                                                  :initform initform)
+                              :def def
                               :body expr))
     (finally (return expr))))
 
@@ -177,8 +185,8 @@
     (setf expr
           (make-instance 'if
                          :predicate predicate
-                         :then-clause (enclose-in-lets binds (parse val))
-                         :else-clause expr))
+                         :then-case (enclose-in-lets binds (parse val))
+                         :else-case expr))
     (finally (let* ((def (make-instance 'definition
                                         :name sym
                                         :initform (parse (syntax:val match))))
@@ -230,12 +238,17 @@
   (make-instance 'quote
                  :it (syntax:it quote)))
 
+(|:| #'parse-definitions (-> ((vector syntax:top-level-form)) (vector definition)))
+(defun parse-definitions (vec)
+  (coerce (remove nil (map 'list #'parse-definition vec))
+          '(vector definition)))
+
 (|:| #'parse-program (-> (syntax:program) program))
 (defun parse-program (program
                       &aux (*types* (adjustable-vector type)))
   "transform a `SYNTAX:PROGRAM' into an `IR1:EXPR'"
   (make-instance 'program
                  :types *types*
-                 :definitions (map '(vector definition) #'parse-definition
-                                   (syntax:definitions program))
+                 :definitions (parse-definitions
+                               (syntax:definitions program))
                  :entry (parse (syntax:entry program))))

@@ -45,9 +45,12 @@
   '())
 
 (defmethod free-type-variables ((within struct))
-  (when (slot-boundp within 'elt-types)
-    (iter (for field in-vector (elt-types within))
-      (appending (free-type-variables field)))))
+  (iter (for field in-vector (elts within))
+    (appending (free-type-variables field))))
+
+(defmethod free-type-variables ((within enum))
+  (iter (for variant in-vector (variants within))
+    (appending (free-type-variables variant))))
 
 (defmethod free-type-variables ((within vector))
   (iter

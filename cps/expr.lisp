@@ -8,7 +8,7 @@
   (:import-from :hindley-milner/subst
    :subst-all-slots :subst-atom)
   (:shadow
-   :variable :let :if :apply)
+   :type :variable :let :if :apply)
   (:export
    :variable :type
    :local :name
