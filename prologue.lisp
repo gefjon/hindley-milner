@@ -93,8 +93,13 @@ for example: (define-special *foo* fixnum)"
 
 (defmacro define-primitive-types (prim-class &body names)
   (flet ((defprim (name)
-           (check-type name symbol)
-           `(defvar ,(symbolicate '* (symbol-name name) '*)
-              (make-instance ',prim-class
-                             :primitive ,name))))
+           (multiple-value-bind (name size align)
+               (etypecase name
+                 (symbol (values name nil nil))
+                 (list (values-list name)))
+             `(defvar ,(symbolicate '* (symbol-name name) '*)
+                (make-instance ',prim-class
+                               :primitive ,name
+                               ,@(when size `(:size ,size))
+                               ,@(when align `(:align ,align)))))))
     `(progn ,@(mapcar #'defprim names))))

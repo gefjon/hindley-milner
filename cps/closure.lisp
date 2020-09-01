@@ -76,19 +76,19 @@ elements)"))
                       (collect-closure-vars (in expr)))
                 :args (enclose-arglist (args expr))))
 
-(defmethod collect-closure-vars ((expr box))
+(defmethod collect-closure-vars ((expr alloc-struct))
   (shallow-copy expr
                 :in (with-additional-local (var expr)
                       (collect-closure-vars (in expr)))
-                :unboxed (enclose-var (unboxed expr))))
+                :elts (enclose-arglist (elts expr))))
 
-(defmethod collect-closure-vars ((expr unbox))
+(defmethod collect-closure-vars ((expr read-struct))
   (shallow-copy expr
                 :in (with-additional-local (var expr)
                       (collect-closure-vars (in expr)))
-                :boxed (enclose-var (boxed expr))))
+                :src (enclose-var (src expr))))
 
-(defmethod collect-closure-vars ((expr coerce-box))
+(defmethod collect-closure-vars ((expr transmute))
   (shallow-copy expr
                 :in (with-additional-local (new expr)
                       (collect-closure-vars (in expr)))

@@ -17,8 +17,8 @@
    :instr
    :read-global :dst :src
    :set-global :dst :src
-   :read-closure-env :dst :env :index
-   :make-closure-env :dst :elts :live-values
+   :read-struct :dst :src :index
+   :make-struct :dst :elts :live-values
    :make-closure-func :dst :env :func
    :extract-env :dst :src
    :extract-func :dst :src
@@ -26,8 +26,6 @@
    :pointer-cast :dst :src
    :branch :condition :if-true :if-false
    :call :func :args
-   :box :dst :src
-   :unbox :dst :src
    :dead :val
 
    :basic-block :label :body
@@ -56,13 +54,13 @@
   '(and unsigned-byte fixnum))
 
 (define-enum instr ()
-  ((read-closure-env ((dst local)
-                      (env register)
-                      (index index)))
-   (make-closure-env ((dst local)
-                      (elts (vector local))
-                      ;; added in `liveness.lisp'
-                      (live-values (vector local) :may-init-unbound t)))
+  ((read-struct ((dst local)
+                 (src register)
+                 (index index)))
+   (make-struct ((dst local)
+                 (elts (vector local))
+                 ;; added in `liveness.lisp'
+                 (live-values (vector local) :may-init-unbound t)))
    (make-closure-func ((dst local)
                        (env local)
                        (func global)))
@@ -80,12 +78,6 @@
             (if-false symbol)))
    (call ((func local)
           (args (vector register))))
-   (box ((dst local)
-         (src register)
-         ;; added in `liveness.lisp'
-         (live-values (vector local) :may-init-unbound t)))
-   (unbox ((dst local)
-           (src local)))
 
    ;; added in `liveness.lisp'
    (dead ((val local)))))

@@ -10,19 +10,14 @@
   (:import-from :hindley-milner/primop
    :operator)
   (:import-from :hindley-milner/syntax/parse
-   :parse :parse-def)
+   :parse :parse-top-level-form)
   (:mix-reexport
    :hindley-milner/syntax/clause)
   (:export
    :hindley-milner ;; names the readtable
 
-   :program :definitions :entry
    :read-program-from-file))
 (cl:in-package :hindley-milner/syntax)
-
-(define-class program
-  ((definitions (vector definition))
-   (entry clause)))
 
 (defreadtable hindley-milner
   (:merge :standard)
@@ -32,11 +27,11 @@
   (cl:let ((*readtable* (find-readtable 'hindley-milner))
            (*package* (find-package :hm)))
     (iter
-      (with definitions = (adjustable-vector definition))
+      (with definitions = (adjustable-vector top-level-form))
       (with entry)
       (for form in-file file)
       (when entry
-        (vector-push-extend (parse-def entry) definitions))
+        (vector-push-extend (apply #'parse-top-level-form entry) definitions))
       (setf entry form)
       (finally (return
                  (make-instance 'program

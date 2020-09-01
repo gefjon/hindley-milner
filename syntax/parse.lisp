@@ -4,8 +4,12 @@
    :hindley-milner/syntax/clause
    :iterate
    :cl)
+  (:import-from :trivial-types
+   :proper-list)
+  (:import-from :alexandria
+   :destructuring-ecase)
   (:export
-   :parse :parse-def))
+   :parse :parse-top-level-form))
 (cl:in-package :hindley-milner/syntax/parse)
 
 (defgeneric parse (thing)
@@ -17,18 +21,53 @@
 (defmethod parse ((thing cons))
   (apply #'parse-list thing))
 
+(|:| #'parse-body (-> (list) (vector clause)))
 (defun parse-body (body)
   (iter (for clause in body)
     (collect (parse clause) result-type (vector clause))))
 
-(defun parse-def (definition)
-  (destructuring-bind (def binding value) definition
-    (unless (eq def 'hm:|def|)
-      (error "~a is not a definition" definition))
-    (check-type binding symbol)
-    (make-instance 'definition
-                   :binding binding
-                   :value (parse value))))
+(defgeneric parse-top-level-form (head &rest tail))
+
+(defmacro define-top-level-form ((head &rest args) &body body)
+  (with-gensyms (head-arg tail-arg)
+    `(defmethod parse-top-level-form ((,head-arg (eql ',head)) &rest ,tail-arg)
+       (declare (ignorable ,head-arg))
+       (destructuring-bind ,args ,tail-arg
+         ,@body))))
+
+(define-top-level-form (hm:|const| name value)
+  (make-instance 'const :binding name :value (parse value)))
+
+(|:| #'type-name-and-params (-> ((or cons symbol))
+                                (values symbol (proper-list symbol))))
+(defun type-name-and-params (typespec)
+  (etypecase typespec
+    (cons (destructuring-bind (name &rest params) typespec
+            (values name params)))
+    (symbol (values typespec ()))))
+
+(define-top-level-form (hm:|struct| name &rest fields)
+  (multiple-value-bind (name params) (type-name-and-params name)
+    (make-instance 'struct
+                   :name name
+                   :type-params (coerce params '(vector symbol))
+                   :elts (coerce fields '(vector symbol)))))
+
+(define-top-level-form (hm:|enum| name &rest variants)
+  (flet ((parse-variant (variant)
+           (apply #'parse-top-level-form 'hm:|struct| variant)))
+    (multiple-value-bind (name params) (type-name-and-params name)
+      (make-instance 'enum
+                     :name name
+                     :type-params params
+                     :variants (map '(vector struct) #'parse-variant variants)))))
+
+(define-top-level-form (hm:|fn| name arglist &body body)
+  (make-instance 'fn
+                 :name name
+                 :value (make-instance 'lambda
+                                       :bindings (coerce arglist '(vector symbol))
+                                       :body (parse-body body))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun get-hm-symbol (symbol)
@@ -90,11 +129,11 @@ e.g. (define-parser funcall (function &rest args)
   (flet ((parse-binding (binding)
            (destructuring-bind (symbol value) binding
              (check-type symbol symbol)
-             (make-instance 'definition
+             (make-instance 'const
                             :binding symbol
                             :value (parse value)))))
     (make-instance 'let
-                   :bindings (map '(vector definition) #'parse-binding bindings)
+                   :bindings (map '(vector const) #'parse-binding bindings)
                    :body (parse-body body))))
 
 (define-parser if (predicate then-clause else-clause)
@@ -102,3 +141,51 @@ e.g. (define-parser funcall (function &rest args)
                  :predicate (parse predicate)
                  :then-case (parse then-clause)
                  :else-case (parse else-clause)))
+
+(defgeneric parse-pattern (pattern))
+
+(|:| #'parse-match-arm (-> (list) (cons pattern clause)))
+(defun parse-match-arm (arm)
+  (destructuring-bind (pattern clause) arm
+    (cons (parse-pattern pattern)
+          (parse clause))))
+
+(define-parser match (value &rest arms)
+  (make-instance 'match
+                 :val value
+                 :arms (map '(vector (cons pattern clause)) #'parse-match-arm
+                            arms)))
+
+(defgeneric parse-struct-field-pat (pattern)
+  (:method ((pattern cons))
+    (destructuring-bind ((field-name subpat)) pattern
+      (check-type field-name symbol)
+      (cons field-name (parse-pattern subpat))))
+  (:method ((pattern symbol))
+    (cons pattern (make-instance 'bind :name pattern))))
+
+(defmethod parse-pattern ((destruct cons))
+  (destructuring-bind (discrim &rest pats) destruct
+    (make-instance 'destruct
+                   :name discrim
+                   :elts (map '(vector (cons symbol pattern))
+                              #'parse-struct-field-pat
+                              pats))))
+
+(defmethod parse-pattern ((_ (eql 'hm:_)))
+  (declare (ignorable _))
+  (make-instance 'ign))
+
+(defmethod parse-pattern ((bind symbol))
+  (make-instance 'bind :name bind))
+
+(defmethod parse-pattern ((exactly fixnum))
+  (make-instance 'exactly :name exactly))
+
+(defmethod parse-pattern ((exactly (eql 'hm:|true|)))
+  (declare (ignorable exactly))
+  (make-instance 'exactly :value t))
+
+(defmethod parse-pattern ((exactly (eql 'hm:|false|)))
+  (declare (ignorable exactly))
+  (make-instance 'exactly :value nil))

@@ -7,16 +7,32 @@
 
    :boolean-literal
    :literal
-   :definition :binding :value
+
+   :type-name
+
+   :top-level-form
+   :const :binding :value
+   :struct :name :type-params :elts
+   :enum :name :type-params :variants
+   :fn :name :value
+
+   :pattern
+   :bind :name
+   :exactly :value
+   :ign
+   :destruct :name :elts
 
    :clause
+   :match :val :arms
    :variable :name
    :quote :it
    :funcall :func :args
    :lambda :bindings :body
    :let :bindings :body
    :if :predicate :then-case :else-case
-   :primop :op :args))
+   :primop :op :args
+
+   :program :definitions :entry))
 (cl:in-package :hindley-milner/syntax/clause)
 
 (deftype boolean-literal ()
@@ -29,21 +45,44 @@
 ;; reader and unchanged by parsing.
 (deftype literal () '(or fixnum boolean))
 
-(define-class definition
-    ((binding symbol)
-     (value clause)))
+(deftype type-name () 'symbol)
+
+(define-enum top-level-form ()
+  ((const ((binding symbol)
+           (value clause)))
+   (struct ((name type-name)
+            (type-params (vector type-name))
+            (elts (vector type-name))))
+   (enum ((name type-name)
+          (type-params (vector type-name))
+          (variants (vector struct))))
+   (fn ((name symbol)
+        (value lambda)))))
+
+(define-enum pattern ()
+  ((bind ((name symbol)))
+   (exactly ((value literal)))
+   (ign ())
+   (destruct ((name symbol)
+              (elts (vector (cons symbol pattern)))))))
 
 (define-enum clause ()
-  ((variable ((name symbol)))
+  ((match ((val symbol)
+           (arms (vector (cons pattern clause)))))
+   (variable ((name symbol)))
    (quote ((it literal)))
    (funcall ((func clause)
              (args (vector clause))))
    (lambda ((bindings (vector symbol))
             (body (vector clause))))
-   (let ((bindings (vector definition))
+   (let ((bindings (vector const))
          (body (vector clause))))
    (if ((predicate clause)
         (then-case clause)
         (else-case clause)))
    (primop ((op operator)
             (args (vector clause))))))
+
+(define-class program
+  ((definitions (vector top-level-form))
+   (entry clause)))

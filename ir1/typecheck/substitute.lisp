@@ -4,7 +4,7 @@
   (:mix
    :hindley-milner/prologue
    :hindley-milner/subst
-   :hindley-milner/ir1/type
+   :hindley-milner/ir1/expr
    :cl
    :iterate)
   (:export :substitution :apply-substitution :instantiate :generalize))
@@ -14,14 +14,14 @@
   '(association-list type-variable type))
 
 (defun apply-substitution (substitution target)
-  (if substitution
-      (let* ((this-subst (first substitution))
-             (old (car this-subst))
-             (new (cdr this-subst))
-             (rest-subst (subst new old (rest substitution)))
-             (new-tree (subst new old target)))
-        (apply-substitution rest-subst new-tree))
-      target))
+  (cl:if substitution
+         (let* ((this-subst (first substitution))
+                (old (car this-subst))
+                (new (cdr this-subst))
+                (rest-subst (subst new old (rest substitution)))
+                (new-tree (subst new old target)))
+           (apply-substitution rest-subst new-tree))
+         target))
 
 (|:| #'instantiate (-> (type-scheme) type))
 (defun instantiate (type-scheme)
@@ -43,6 +43,11 @@
 (defmethod free-type-variables ((within type-primitive))
   (declare (ignorable within))
   '())
+
+(defmethod free-type-variables ((within struct))
+  (when (slot-boundp within 'elt-types)
+    (iter (for field in-vector (elt-types within))
+      (appending (free-type-variables field)))))
 
 (defmethod free-type-variables ((within vector))
   (iter

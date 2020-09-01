@@ -1,31 +1,27 @@
 (uiop:define-package :hindley-milner/ir1/typecheck/infer
   (:mix
    :hindley-milner/ir1/expr
-   :hindley-milner/ir1/type
    :hindley-milner/ir1/typecheck/substitute
    :hindley-milner/prologue
    :iterate
    :cl)
   (:import-from :trivial-types
-   :association-list)
+   :proper-list)
   (:export
    :infer-program
-   :constraint :constraints :lhs :rhs))
+   :constraint :eqv :constraints :lhs :rhs))
 (cl:in-package :hindley-milner/ir1/typecheck/infer)
 
-(deftype constraint ()
-  '(cons type type))
+(define-enum constraint ()
+  ((eqv ((lhs type)
+         (rhs type)))))
 
-(|:| #'lhs (-> (constraint) type))
-(defun lhs (constraint)
-  (car constraint))
-
-(|:| #'rhs (-> (constraint) type))
-(defun rhs (constraint)
-  (cdr constraint))
+(|:| #'eqv (-> (type type) eqv))
+(defun eqv (lhs rhs)
+  (make-instance 'eqv :lhs lhs :rhs rhs))
 
 (deftype constraints ()
-  '(association-list type type))
+  '(proper-list constraint))
 
 (defgeneric infer (expr type-env)
   (:documentation "returns (`VALUES' TYPED-IR1 TYPE CONSTRAINTS)
@@ -57,7 +53,7 @@ CONSTRAINTS is an (`ASSOCIATION-LIST' `TYPE' `TYPE') denoting the constraints to
               (arrow-type (make-instance 'arrow
                                          :inputs arg-types
                                          :output return-type))
-              (funcall-constraints (acons arrow-type func-type ()))
+              (funcall-constraints (list (eqv arrow-type func-type)))
               (all-constraints (append funcall-constraints func-constraints arg-constraints))
               (new-node (make-instance 'funcall
                                        :type return-type
@@ -140,8 +136,8 @@ TYPE-ENV with information about the new definition."
                                         :predicate pred-expr
                                         :then-case then-expr
                                         :else-case else-expr))
-               (if-constraints (acons pred-type *boolean*
-                                      (acons then-type else-type ())))
+               (if-constraints (list (eqv pred-type *boolean*)
+                                     (eqv then-type else-type)))
                (all-constraints
                  (append if-constraints pred-constraints then-constraints else-constraints)))
           (values new-node
@@ -172,6 +168,73 @@ TYPE-ENV with information about the new definition."
             type
             ())))
 
+(define-special *ctor-schemes* (hash-map-of symbol type-scheme))
+
+(|:| #'ctor-schemes-map (-> ((vector type-scheme))
+                            (hash-map-of symbol type-scheme)))
+(defun ctor-schemes-map (types)
+  (iter (with map = (make-hash-table :test #'eq))
+    (for scheme in-vector types)
+    (for type = (body scheme))
+    (etypecase type
+      (struct (setf (gethash (name type) map) scheme))
+      (enum (iter (for variant in-vector (variants type))
+              (setf (gethash (name variant) map) scheme))))
+    (finally (return map))))
+
+(|:| #'type-for-ctor (-> (symbol) type))
+(defun type-for-ctor (ctor)
+  (instantiate (gethash ctor *ctor-schemes*)))
+
+(defmethod infer ((expr discriminant-p) type-env)
+  (multiple-value-bind (value-expr value-type value-constraints)
+      (infer (value expr) type-env)
+    (let* ((enum-type (type-for-ctor (variant expr))))
+      (values (shallow-copy expr
+                            :value value-expr
+                            :type *boolean*)
+              *boolean*
+              (cons (eqv value-type enum-type) value-constraints)))))
+
+(defmethod infer ((expr assert-variant) type-env)
+  (multiple-value-bind (src src-type src-constraints)
+      (infer (src expr) type-env)
+    (let* ((agg-type (type-for-ctor (constructor expr))))
+      (values (shallow-copy expr
+                            :src src
+                            :type agg-type)
+              agg-type
+              (cons (eqv agg-type src-type) src-constraints)))))
+
+(defmethod infer ((expr match-exhausted) type-env)
+  (declare (ignorable type-env))
+  (let* ((ty (new-type-variable "bottom-type-")))
+    (values (shallow-copy expr :type ty)
+            ty
+            ())))
+
+(defgeneric find-variant (agg ctor)
+  (:method ((agg struct) (ctor symbol))
+    (assert (eq (name agg) ctor))
+    agg)
+  (:method ((agg enum) (ctor symbol))
+    (or (find ctor (variants agg) :key #'name :test #'eq)
+        (error "Variant ~a not in enum ~a" ctor agg))))
+
+(defmethod infer ((expr field-value) type-env)
+  (multiple-value-bind (agg-expr agg-ty agg-constraints)
+      (infer (aggregate expr) type-env)
+    (let* ((ctor (constructor expr))
+           (ctor-ty (type-for-ctor ctor))
+           (variant (find-variant ctor-ty ctor))
+           (field-ty (aref (elts variant) (idx expr))))
+      (values (shallow-copy expr
+                            :type field-ty
+                            :aggregate agg-expr)
+              field-ty
+              (cons (eqv ctor-ty agg-ty)
+                    agg-constraints)))))
+
 (|:| #'infer-program (-> (program) (values program constraints &optional)))
 (defmethod infer-program (program)
   (iter
@@ -187,8 +250,8 @@ TYPE-ENV with information about the new definition."
        (declare (ignore result-type))
        (return
          (values
-          (make-instance 'program
-                         :definitions definitions
-                         :entry entry)
+          (shallow-copy program
+                        :definitions definitions
+                        :entry entry)
           (append entry-constraints constraints)))))))
 

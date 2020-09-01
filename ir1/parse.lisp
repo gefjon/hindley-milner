@@ -1,23 +1,87 @@
 (uiop:define-package :hindley-milner/ir1/parse
   (:mix
-   :hindley-milner/ir1/type
    :hindley-milner/ir1/expr
    :hindley-milner/prologue
    :cl
    :iterate)
+  (:import-from :trivial-types :proper-list)
   (:import-from :hindley-milner/syntax)
   (:import-from :uiop :emptyp)
   (:export :parse-program))
 (cl:in-package :hindley-milner/ir1/parse)
 
+(define-special *types* (vector type))
+
+(|:| #'add-type (-> (type-scheme) void))
+(defun add-type (new-type)
+  (vector-push-extend new-type *types*)
+  (values))
+
 (defgeneric parse (clause)
   (:documentation "transform a `SYNTAX:CLAUSE' into an `IR1:EXPR'"))
 
-(|:| #'parse-definition (-> (syntax:definition) definition))
-(defun parse-definition (definition)
+(defgeneric parse-definition (def))
+
+(defmethod parse-definition ((def syntax:const))
   (make-instance 'definition
-                 :name (syntax:binding definition)
-                 :initform (parse (syntax:value definition))))
+                 :name (syntax:binding def)
+                 :initform (parse (syntax:value def))))
+
+(define-special *type-variables* (hash-map-of symbol type-variable))
+
+(|:| #'add-type-var (-> (symbol) type-variable))
+(defun add-type-var (name)
+  (setf (gethash name *type-variables*)
+        (new-type-variable name)))
+
+(|:| #'find-type-var (-> (symbol) type-variable))
+(defun find-type-var (name)
+  (multiple-value-bind (var foundp) (gethash name *type-variables*)
+    (unless foundp
+      (error "Unbound type variable ~a" name))
+    var))
+
+(|:| #'parse-type-name (-> (symbol) type))
+(defun parse-type-name (type-name)
+  (case type-name
+    (hm:|fixnum| *fixnum*)
+    (hm:|boolean| *boolean*)
+    (hm:|void| *void*)
+    (otherwise (find-type-var type-name))))
+
+(|:| #'parse-struct-def (-> (syntax:struct) struct))
+(defun parse-struct-def (struct)
+  (let* ((elements (map '(vector type) #'parse-type-name
+                        (syntax:elts struct))))
+    (make-instance 'struct
+                   :name (syntax:name struct)
+                   :elts elements)))
+
+(defmethod parse-definition ((def syntax:struct))
+  (let* ((*type-variables* (make-hash-table :test #'eq))
+         (bindings (map '(vector type-variable) #'add-type-var
+                        (syntax:type-params def))))
+    (add-type (make-instance 'type-scheme
+                             :bindings bindings
+                             :body (parse-struct-def def)))))
+
+(defmethod parse-definition ((def syntax:enum))
+  (let* ((*type-variables* (make-hash-table :test #'eq))
+         (bindings (map '(vector type-variable) #'add-type-var
+                        (syntax:type-params def)))
+         (variants (map '(vector struct) #'parse-struct-def
+                        (syntax:variants def)))
+         (enum (make-instance 'enum
+                              :name (syntax:name def)
+                              :variants variants)))
+    (add-type (make-instance 'type-scheme
+                             :bindings bindings
+                             :body enum))))
+
+(defmethod parse-definition ((def syntax:fn))
+  (make-instance 'definition
+                 :name (syntax:name def)
+                 :initform (parse (syntax:value def))))
 
 (|:| #'transform-implicit-progn (-> ((vector syntax:clause)) expr))
 (defun transform-implicit-progn (progn)
@@ -35,6 +99,93 @@
   (iter
     (for arg in-vector arg-vec)
     (collect (parse arg) result-type (vector expr))))
+
+(defgeneric parse-pattern (pat discrim-var)
+  (:documentation "Returns two values, a PREDICATE expr and a list `definition's for bindings in the chosen arm's expr."))
+
+(defmethod parse-pattern ((bind syntax:bind) discrim-var)
+  (values *true*
+          (list (make-instance 'definition
+                               :name (syntax:name bind)
+                               :initform discrim-var))))
+
+(defmethod parse-pattern ((exactly syntax:exactly) discrim-var)
+  (let* ((constant (make-instance 'quote :it (syntax:value exactly)))
+         (primop (make-instance 'primop
+                           :op 'hm:=
+                           :args (specialized-vector expr
+                                                     constant
+                                                     discrim-var))))
+    (values primop nil)))
+
+(defmethod parse-pattern ((ign syntax:ign) discrim-var)
+  (declare (ignorable ign discrim-var))
+  (values *true* nil))
+
+(defmethod parse-pattern ((destruct syntax:destruct) discrim-var)
+  (iter
+    (with ctor = (syntax:name destruct))
+    (with discrim-p = (make-instance 'discriminant-p
+                                     :variant ctor
+                                     :value discrim-var))
+    (with transmute-sym = (gensym 'transmute))
+    (with transmute-var = (make-instance 'variable :name transmute-sym))
+    (with transmute-expr = (make-instance 'assert-variant
+                                          :src discrim-var
+                                          :constructor ctor))
+    (with transmute-def = (make-instance 'definition
+                                         :name transmute-sym
+                                         :initform transmute-expr))
+    (for (field . subpat) in-vector (syntax:elts destruct))
+    (for sym = (make-gensym field))
+    (for var = (make-instance 'variable :name sym))
+    (for def = (make-instance 'definition
+                              :name sym
+                              :initform (make-instance 'field-value
+                                                       :field-name field
+                                                       :aggregate transmute-var)))
+    (for (subpred . subbinds) = (parse-pattern subpat var))
+    (collect (make-instance 'let
+                            :def def
+                            :body subpred)
+      into predicates)
+    (collect def into binds)
+    (appending subbinds into binds)
+    (finally (return (values (cons discrim-p predicates)
+                             (cons transmute-def binds))))))
+
+(|:| #'enclose-in-lets (-> ((proper-list (cons symbol expr)) expr) expr))
+(defun enclose-in-lets (binds inner)
+  (iter
+    (with expr = inner)
+    (for (var . initform) in (nreverse binds))
+    (setf expr (make-instance 'let
+                              :def (make-instance 'definition
+                                                  :name var
+                                                  :initform initform)
+                              :body expr))
+    (finally (return expr))))
+
+(defmethod parse ((match syntax:match))
+  (iter
+    (with sym = (gensym "match-value"))
+    (with var = (make-instance 'variable
+                               :name sym))
+    (with expr = (make-instance 'match-exhausted))
+    (for (pat . val) in-vector (syntax:arms match) downto 0)
+    (for (values predicate binds) = (parse-pattern pat var))
+    (setf expr
+          (make-instance 'if
+                         :predicate predicate
+                         :then-clause (enclose-in-lets binds (parse val))
+                         :else-clause expr))
+    (finally (let* ((def (make-instance 'definition
+                                        :name sym
+                                        :initform (parse (syntax:val match))))
+                    (let (make-instance 'let
+                                        :def def
+                                        :body expr)))
+               (return let)))))
 
 (defmethod parse ((funcall syntax:funcall))
   (make-instance 'funcall
@@ -80,9 +231,11 @@
                  :it (syntax:it quote)))
 
 (|:| #'parse-program (-> (syntax:program) program))
-(defun parse-program (program)
+(defun parse-program (program
+                      &aux (*types* (adjustable-vector type)))
   "transform a `SYNTAX:PROGRAM' into an `IR1:EXPR'"
   (make-instance 'program
+                 :types *types*
                  :definitions (map '(vector definition) #'parse-definition
                                    (syntax:definitions program))
                  :entry (parse (syntax:entry program))))

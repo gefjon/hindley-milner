@@ -20,9 +20,9 @@
    :*exit-continuation*
 
    :expr
-   :box :var :unboxed :in
-   :unbox :var :boxed :in
-   :coerce-box :new :old :in
+   :alloc-struct :var :elts :in
+   :read-struct :var :src :idx :in
+   :transmute :new :old :in
    :let :var :prim-op :args :in
    :proc :name :body :closes-over :arglist :in
    :if :predicate :then-clause :else-clause
@@ -47,15 +47,16 @@
   "the continuation to exit the program")
 
 (define-enum expr ()
-  ((box ((var local)
-         (unboxed variable)
-         (in expr)))
-   (unbox ((var local)
-           (boxed variable)
-           (in expr)))
-   (coerce-box ((new local)
-                (old variable)
-                (in expr)))
+  ((alloc-struct ((var local)
+                  (elts (vector variable))
+                  (in expr)))
+   (read-struct ((var local)
+                 (src variable)
+                 (idx (and fixnum unsigned-byte))
+                 (in expr)))
+   (transmute ((new local)
+               (old variable)
+               (in expr)))
    (let ((var variable)
          (prim-op operator)
          (args (vector variable))

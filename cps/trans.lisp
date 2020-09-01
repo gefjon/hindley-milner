@@ -126,22 +126,22 @@ terms that must be computed prior to the call."
     (appending compute-arg into intermediate-terms)
     (finally (return (values arg-vars intermediate-terms)))))
 
-(|:| #'compatible-boxes-p (-> (repr-type repr-type) boolean))
-(defun compatible-boxes-p (lht rht)
-  (and (typep lht 'type-variable)
-       (typep rht 'type-variable)))
-
-(|:| #'box-arg (-> (variable local expr) expr))
-(defun box-arg (old new inner-expr)
-  (cl:if (compatible-boxes-p (type old) (type new))
-         (make-instance 'coerce-box
-                        :new new
-                        :old old
-                        :in inner-expr)
-         (make-instance 'box
-                        :var new
-                        :unboxed old
-                        :in inner-expr)))
+(|:| #'opaquify (-> (variable local expr) expr))
+(defun opaquify (old new inner-expr)
+  (let* ((boxed-p (boxed-p (type old)))
+         (trans-in-var (cl:if boxed-p old
+                              (make-instance 'local
+                                             :name (gensym "opaquify")
+                                             :type (struct (type old)))))
+         (transmute (make-instance 'transmute
+                                   :new new
+                                   :old old
+                                   :in inner-expr)))
+    (cl:if boxed-p transmute
+           (make-instance 'alloc-struct
+                          :var trans-in-var
+                          :elts (specialized-vector variable old)
+                          :in transmute))))
 
 (|:| #'first-arg (-> (function) repr-type))
 (defun first-arg (ftype)
@@ -151,17 +151,23 @@ terms that must be computed prior to the call."
 (defun return-type (ftype)
   (first-arg (first-arg ftype)))
 
-(|:| #'unbox (-> (variable local expr) expr))
-(defun unbox (old new inner-expr)
-  (cl:if (compatible-boxes-p (type old) (type new))
-         (make-instance 'coerce-box
-                        :new new
-                        :old old
-                        :in inner-expr)
-         (make-instance 'unbox
-                        :var new
-                        :boxed old
-                        :in inner-expr)))
+(|:| #'unopaquify (-> (variable local expr) expr))
+(defun unopaquify (old new inner-expr)
+  (let* ((boxed-p (boxed-p (type new)))
+         (trans-out-var (cl:if boxed-p new
+                               (make-instance 'local
+                                              :name (gensym "unopaquify")
+                                              :type (struct (type old)))))
+         (load (cl:if boxed-p inner-expr
+                      (make-instance 'read-struct
+                                     :var new
+                                     :src trans-out-var
+                                     :idx 0
+                                     :in inner-expr))))
+    (make-instance 'transmute
+                   :new trans-out-var
+                   :old old
+                   :in load)))
 
 (|:| #'trampoline (-> (local expr local repr-type repr-type) expr))
 (defun trampoline (fn-to-call apply-expr cont-var target-type source-type)
@@ -176,7 +182,7 @@ terms that must be computed prior to the call."
                           :name cont-var
                           :arglist (specialized-vector local arg)
                           :in apply-expr
-                          :body (unbox arg unboxed (make-instance 'apply
+                          :body (unopaquify arg unboxed (make-instance 'apply
                                                                   :args (specialized-vector variable unboxed)
                                                                   :func fn-to-call))))))
 
@@ -210,7 +216,7 @@ terms that must be computed prior to the call."
                                           :name (gensym "boxed-arg")
                                           :type arg-ty))
 
-          (setf inner-expr (box-arg arg boxed-arg inner-expr))
+          (setf inner-expr (opaquify arg boxed-arg inner-expr))
           (vector-push-extend boxed-arg boxed-args)
           (finally
            (return
@@ -385,8 +391,19 @@ terms that must be computed prior to the call."
 (defmethod transform-binding ((initform ir1:quote) var body &key &allow-other-keys)
   (subst (transform-to-var initform) var body))
 
-(defmethod transform-binding ((initform ir1:variable) var body &key &allow-other-keys)
-  (subst (transform-to-var initform) var body))
+(defmethod transform-binding ((initform ir1:variable) var body &key lexenv &allow-other-keys)
+  (subst (transform-to-var initform :lexenv lexenv) var body))
+
+(defmethod transform-binding ((initform ir1:assert-variant) var body
+                              &key lexenv &allow-other-keys)
+  (multiple-value-bind (agg-var agg-terms)
+      (transform-to-var (ir1:src initform) :lexenv lexenv)
+    (compute-intermediate-terms agg-terms
+                                (make-instance 'transmute
+                                               :new var
+                                               :old agg-var
+                                               :in body)
+                                agg-terms)))
 
 (defmethod transform-binding ((initform ir1:expr) var body
                               &key

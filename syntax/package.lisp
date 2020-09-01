@@ -1,12 +1,16 @@
 (uiop:define-package :hindley-milner/syntax/package
   (:nicknames :hm)
-  (:export :|def|
-           :|funcall|
-           :|lambda|
-           :|let|
-           :|if|
-           
-           :+ :- :* :/ :=
+  (:export
+   :|const| :|struct| :|enum| :|fn|
+
+   :|funcall|
+   :|lambda|
+   :|let|
+   :|if|
+
+   :_
+   
+   :+ :- :* :/ :=
 
    :|boolean| :|true| :|false|
 

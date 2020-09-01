@@ -29,7 +29,20 @@
            (fptr (make-instance 'function-ptr
                                 :inputs all-args)))
       (make-instance 'closure-func
-                     :fptr fptr))))
+                     :fptr fptr)))
+  (:method ((type cps:struct))
+    (make-instance 'struct
+                   :elts (map '(vector repr-type) #'extend-type
+                              (cps:elts type))))
+  (:method ((type cps:enum))
+    (iter (for cps-variant in-vector (cps:variants type))
+      (for variant = (extend-type cps-variant))
+      (finding variant maximizing (size type) into biggest)
+      (finally (return
+                 (make-instance 'struct
+                                :elts (specialized-vector repr-type
+                                                          *fixnum*
+                                                          biggest)))))))
 
 (define-special *current-procedure* procedure)
 (define-special *program* program)
@@ -69,9 +82,9 @@
     (read-from (local-for-var var)))
   (:method ((var cps:closure))
     (let ((reg (local-for-var var)))
-      (insn 'read-closure-env
+      (insn 'read-struct
             :dst reg
-            :env *current-closure-env*
+            :src *current-closure-env*
             :index (idx-for-closure var))
       reg))
   (:method ((var cps:constant))
@@ -95,7 +108,7 @@
          (values procedure basic-block local)))
 (defun make-procedure (name arglist &optional closure-env)
   "Returns as multiple values a `procedure', its entry `basic-block', and the `local' which refers to its `closure-env'."
-  (let* ((closure-env (make-instance 'closure-env
+  (let* ((closure-env (make-instance 'struct
                                      :elts (map '(vector type) (compose #'extend-type #'cps:type)
                                                 closure-env)))
          (*current-bb* (make-instance 'basic-block
@@ -106,9 +119,7 @@
                               (map 'list #'corresponding-local
                                    arglist))
                        '(vector local)))
-         (typed-closure-reg (make-closure-arg name
-                                              (make-instance 'gc-ptr
-                                                             :pointee closure-env))))
+         (typed-closure-reg (make-closure-arg name closure-env)))
     (unless (uiop:emptyp (elts closure-env))
       (insn 'pointer-cast
             :dst typed-closure-reg
@@ -149,20 +160,28 @@
 
 (defgeneric transform-expr (cps-expr))
 
-(defmethod transform-expr ((expr cps:box))
-  (insn 'box
+(defmethod transform-expr ((expr cps:alloc-struct))
+  (insn 'make-struct
         :dst (corresponding-local (cps:var expr))
-        :src (read-from (cps:unboxed expr)))
+        :elts (read-from (cps:elts expr)))
   (transform-expr (cps:in expr)))
 
-(defmethod transform-expr ((expr cps:unbox))
-  (insn 'unbox
+(defmethod transform-expr ((expr cps:read-struct))
+  (insn 'read-struct
         :dst (corresponding-local (cps:var expr))
-        :src (read-from (cps:boxed expr)))
+        :src (read-from (cps:src expr))
+        :index (cps:idx expr))
   (transform-expr (cps:in expr)))
 
-(defmethod transform-expr ((expr cps:coerce-box))
-  (transform-expr (cps:in expr)))
+(defmethod transform-expr ((expr cps:transmute))
+  (if (cps:type-equal (cps:type (cps:new expr))
+                      (cps:type (cps:old expr)))
+      (transform-expr (subst (cps:new expr) (cps:old expr) (cps:in expr)))
+      (progn
+        (insn 'pointer-cast
+              :dst (corresponding-local (cps:new expr))
+              :src (read-from (cps:old expr)))
+        (transform-expr (cps:in expr)))))
 
 (defmethod transform-expr ((expr cps:let))
   (insn 'primop
@@ -178,18 +197,17 @@
                                :name (name reg)
                                :type (fptr (type reg))))
          (env-ty (make-instance
-                  'closure-env
+                  'struct
                   :elts (map '(vector repr-type)
                              (compose #'extend-type #'cps:type)
                              (cps:closes-over defn))))
-         (ptr-to-env (make-instance 'gc-ptr :pointee env-ty))
          (env (make-instance 'local
                              :name (format-gensym "~a-env" (name reg))
-                             :type ptr-to-env)))
+                             :type env-ty)))
     (with-procedure
         (fname (cps:arglist defn) (cps:closes-over defn))
       (transform-expr (cps:body defn)))
-    (insn 'make-closure-env
+    (insn 'make-struct
           :dst env
           :elts (read-from
                  (map '(vector cps:local) #'cps:corresponding-local
