@@ -67,7 +67,7 @@
               (elts (vector pattern))))))
 
 (define-enum clause ()
-  ((match ((val symbol)
+  ((match ((val clause)
            (arms (vector (cons pattern clause)))))
    (variable ((name symbol)))
    (quote ((it literal)))

@@ -1,10 +1,10 @@
 (uiop:define-package :hindley-milner/compile
   (:nicknames :compile)
-  (:mix :hindley-milner/prologue :cl)
+  (:mix :hindley-milner/prologue :cl :iterate)
   (:import-from :uiop
-   :run-program)
+   :run-program :directory-files :with-temporary-file :subprocess-error :subprocess-error-code)
   (:import-from :asdf
-   :output-file :make-operation :compile-op :find-component :find-system)
+   :output-file :make-operation :compile-op :find-component :find-system :system-relative-pathname)
   (:shadow :compile)
   (:import-from :hindley-milner/syntax
    :read-program-from-file)
@@ -18,7 +18,7 @@
    :ir4-trans)
   (:import-from :hindley-milner/llvm-emit
    :emit-to-file)
-  (:export :compile :*compile-output* :*compile-error*))
+  (:export :compile :*compile-output* :*compile-error* :test))
 (in-package :hindley-milner/compile)
 
 (|:| #'compile-to-ll (-> (pathname pathname) void))
@@ -74,4 +74,35 @@
     (compile-to-ll source-path ll-path)
     (asmify ll-path s-path)
     (link s-path exe-path))
+  (values))
+
+(|:| *examples-dir* pathname)
+(defparameter *examples-dir*
+  (system-relative-pathname (find-system :hindley-milner) "examples/"))
+
+(|:| #'test (-> () void))
+(defun test ()
+  (iter
+    (for infile in (directory-files *examples-dir*))
+    (for test-name = (pathname-name infile))
+    (flet ((handler (e)
+             (format *debug-io*
+                     "~&invoking restart with ~a~%" e)
+             (invoke-restart 'ignore-failed-test e))
+           (restart (&optional e)
+             (format *error-output*
+                     "~&example ~a failed"
+                     test-name)
+             (when e
+               (format *error-output*
+                       " with code ~a"
+                       (subprocess-error-code e)))
+             (terpri *error-output*)
+             (next-iteration)))
+      (handler-bind ((subprocess-error #'handler))
+        (restart-bind ((ignore-failed-test #'restart))
+          (with-temporary-file (:pathname outfile
+                                :prefix test-name)
+            (compile infile outfile)
+            (run-program (list outfile)))))))
   (values))

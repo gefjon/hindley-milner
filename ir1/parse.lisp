@@ -126,7 +126,12 @@
   (make-instance 'and :lhs lhs :rhs rhs))
 
 (defun condition-union (&rest conditions)
-  (reduce #'andify conditions))
+  (cond
+    ((null conditions) *true*)
+    ((cl:and (consp conditions)
+             (null (rest conditions)))
+     (first conditions))
+    ((reduce #'andify conditions))))
 
 (defmethod parse-pattern ((destruct syntax:destruct) discrim-var)
   (iter

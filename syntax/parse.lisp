@@ -39,12 +39,12 @@
   (make-instance 'const :binding name :value (parse value)))
 
 (|:| #'type-name-and-params (-> ((or cons symbol))
-                                (values symbol (proper-list symbol))))
+                                (values symbol (vector type-name))))
 (defun type-name-and-params (typespec)
   (etypecase typespec
     (cons (destructuring-bind (name &rest params) typespec
-            (values name params)))
-    (symbol (values typespec ()))))
+            (values name (coerce params '(vector type-name)))))
+    (symbol (values typespec (specialized-vector type-name)))))
 
 (define-top-level-form (hm:|struct| name &rest fields)
   (multiple-value-bind (name params) (type-name-and-params name)
@@ -55,9 +55,10 @@
 
 (define-top-level-form (hm:|enum| name &rest variants)
   (flet ((parse-variant (variant)
-           (apply #'parse-top-level-form 'hm:|struct| (etypecase variant
-                                                        (list variant)
-                                                        (symbol (list variant))))))
+           (apply #'parse-top-level-form 'hm:|struct|
+                  (etypecase variant
+                    (list variant)
+                    (symbol (list variant))))))
     (multiple-value-bind (name params) (type-name-and-params name)
       (make-instance 'enum
                      :name name
