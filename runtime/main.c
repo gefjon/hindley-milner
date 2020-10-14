@@ -11,7 +11,7 @@ typedef closure_ty(fixnum) exit_closure;
 
 extern _Noreturn void hm_main(gc_ptr, exit_closure);
 
-_Noreturn void exit_fn(gc_ptr env, fixnum status) {
+static _Noreturn void exit_fn(gc_ptr env, fixnum status) {
   if (status) {
     errno = status;
     perror("hm_main exit");
@@ -21,7 +21,7 @@ _Noreturn void exit_fn(gc_ptr env, fixnum status) {
 
 exit_closure exit_c = { .func = exit_fn, .env = NULL };
 
-void thread_init() {
+static void thread_init() {
   gc_thread_init();
 }
 

@@ -35,16 +35,16 @@ const fixnum NURSERY_SIZE = PAGE_SIZE * 0x10;
 const fixnum GEN_NURSERY = 0;
 const fixnum FIRST_LARGE_GEN = 1;
 
-_Thread_local gc_ptr nursery_start;
-_Thread_local gc_ptr nursery_fill_ptr;
-_Thread_local gc_ptr nursery_end;
-_Thread_local fixnum nursery_ct;
+_Thread_local static gc_ptr nursery_start;
+_Thread_local static gc_ptr nursery_fill_ptr;
+_Thread_local static gc_ptr nursery_end;
+_Thread_local static fixnum nursery_ct;
 
-_Thread_local fixnum this_collection_gen;
+_Thread_local static fixnum this_collection_gen;
 
-_Thread_local struct generation *generations;
+_Thread_local static struct generation *generations;
 
-const fixnum MAX_GEN = PAGE_SIZE / sizeof(struct generation);
+static const fixnum MAX_GEN = PAGE_SIZE / sizeof(struct generation);
 
 static fixnum generation_size(fixnum n) {
   if (n == GEN_NURSERY) {
