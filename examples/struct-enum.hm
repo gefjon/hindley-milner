@@ -1,0 +1,17 @@
+;;;; -*- mode: lisp; -*-
+
+(struct (foo a) (a a) (b fixnum))
+
+(enum (option a) (some (thing a)) none)
+
+(fn is-some (opt)
+    (match opt
+      ((some (thing _)) true)
+      (none false)))
+
+(fn a-is-some (foo)
+    (match foo
+      ((foo (a a) (b _) c) (is-some a))))
+
+(if (is-some (some false))
+    1 0)

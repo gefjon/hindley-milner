@@ -1,0 +1,8 @@
+;;;; -*- mode: lisp; -*-
+
+(fn apply (func arg)
+    (func arg))
+
+(fn identity (x) x)
+
+(apply identity 0)

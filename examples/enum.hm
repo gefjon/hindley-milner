@@ -1,0 +1,13 @@
+;;;; -*- mode: lisp; -*-
+
+(enum (option a)
+      (some a)
+      none)
+
+(fn is-some (opt)
+    (match opt
+      ((some _) true)
+      ((none) false)))
+
+(if (is-some (some 3))
+    1 0)
