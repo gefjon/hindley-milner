@@ -34,6 +34,9 @@
    CLOSED: [2020-08-18 Tue 05:57]
 ** DONE correct RAUW of constants placed in closure envs
    CLOSED: [2020-08-03 Mon 00:28]
+** TODO fix transmute between pointer types
+   this is broken because we box the closure object into a wrapper struct, but the callee
+   expects to recv them unboxed
 * musings of mine
   i don't claim that any of these ideas are original, but typing them out helps
   me to understand them.
